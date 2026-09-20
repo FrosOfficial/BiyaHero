@@ -1,0 +1,111 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleProp, ViewStyle } from 'react-native';
+import { WebView } from 'react-native-webview';
+import { Coords } from '../hooks/useLocation';
+import { tileUrl, useMapTiler } from '../mapConfig';
+
+export interface MapMarker {
+  id: string;
+  latitude: number;
+  longitude: number;
+  color: string;
+  label?: string;
+}
+
+interface LeafletMapProps {
+  center: Coords;
+  user: Coords | null;
+  markers?: MapMarker[];
+  style?: StyleProp<ViewStyle>;
+}
+
+function buildHtml(lat: number, lng: number): string {
+  // MapTiler styles are already clean; only filter the raw OSM tiles.
+  const tileFilter = useMapTiler
+    ? ''
+    : '.leaflet-tile-pane{filter:sepia(0.35) saturate(0.8) brightness(1.06) contrast(0.9) hue-rotate(-8deg);}';
+  const subdomains = useMapTiler ? '' : "subdomains: 'abc',";
+
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  html,body,#map{height:100%;margin:0;padding:0;background:#FAF6ED;}
+  ${tileFilter}
+</style>
+</head><body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${lat}, ${lng}], 15);
+  L.tileLayer('${tileUrl}', { maxZoom: 20, ${subdomains} }).addTo(map);
+  var userMarker = null, jeepLayer = L.layerGroup().addTo(map), centeredOnce = false;
+
+  function jeepSvg(color) {
+    return '<svg width="48" height="32" viewBox="0 0 48 32" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="2" y="7" width="40" height="15" rx="3.5" fill="' + color + '" stroke="#18181B" stroke-width="2.5"/>' +
+      '<rect x="6" y="9.5" width="30" height="6.5" rx="1.5" fill="#FAF6ED" stroke="#18181B" stroke-width="1.5"/>' +
+      '<line x1="16" y1="9.5" x2="16" y2="16" stroke="#18181B" stroke-width="1.3"/>' +
+      '<line x1="26" y1="9.5" x2="26" y2="16" stroke="#18181B" stroke-width="1.3"/>' +
+      '<rect x="38" y="10.5" width="7" height="9" rx="2" fill="' + color + '" stroke="#18181B" stroke-width="2"/>' +
+      '<circle cx="13" cy="25" r="4.5" fill="#18181B"/><circle cx="13" cy="25" r="1.6" fill="#FAF6ED"/>' +
+      '<circle cx="31" cy="25" r="4.5" fill="#18181B"/><circle cx="31" cy="25" r="1.6" fill="#FAF6ED"/>' +
+      '</svg>';
+  }
+
+  window.setUser = function(la, ln) {
+    if (!userMarker) {
+      userMarker = L.circleMarker([la, ln], { radius: 8, color: '#18181B', weight: 3, fillColor: '#3A86FF', fillOpacity: 1 }).addTo(map);
+    } else { userMarker.setLatLng([la, ln]); }
+    if (!centeredOnce) { map.setView([la, ln], 16); centeredOnce = true; }
+  };
+
+  window.setMarkers = function(arr) {
+    jeepLayer.clearLayers();
+    arr.forEach(function(m) {
+      var icon = L.divIcon({
+        html: jeepSvg(m.color),
+        className: '',
+        iconSize: [48, 32],
+        iconAnchor: [24, 28]
+      });
+      var mk = L.marker([m.latitude, m.longitude], { icon: icon }).addTo(jeepLayer);
+      if (m.label) { mk.bindPopup(m.label); }
+    });
+  };
+
+  if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage('ready'); }
+</script></body></html>`;
+}
+
+export default function LeafletMap({ center, user, markers = [], style }: LeafletMapProps) {
+  const ref = useRef<WebView>(null);
+  const [ready, setReady] = useState(false);
+  const source = useMemo(() => ({ html: buildHtml(center.latitude, center.longitude) }), []);
+
+  useEffect(() => {
+    if (ready && user && ref.current) {
+      ref.current.injectJavaScript(`window.setUser(${user.latitude}, ${user.longitude}); true;`);
+    }
+  }, [ready, user]);
+
+  useEffect(() => {
+    if (ready && ref.current) {
+      ref.current.injectJavaScript(`window.setMarkers(${JSON.stringify(markers)}); true;`);
+    }
+  }, [ready, markers]);
+
+  return (
+    <WebView
+      ref={ref}
+      originWhitelist={['*']}
+      source={source}
+      style={style}
+      javaScriptEnabled
+      domStorageEnabled
+      onMessage={(e) => {
+        if (e.nativeEvent.data === 'ready') setReady(true);
+      }}
+    />
+  );
+}

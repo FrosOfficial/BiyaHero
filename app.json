@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "BiyaHero",
+    "slug": "biyahero",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FAF6ED",
+    "icon": "./assets/icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "BiyaHero uses your location to show jeepneys near you on the map."
+      }
+    },
+    "android": {
+      "package": "com.biyahero.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAF6ED"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BiyaHero uses your location to show jeepneys near you on the map."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "backgroundColor": "#FAF6ED",
+          "imageWidth": 220
+        }
+      ],
+      "expo-font"
+    ]
+  }
+}
