@@ -2,13 +2,18 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Coords } from '../hooks/useLocation';
 import { isConfigured } from '../firebase';
+import { Lang, translate } from '../i18n';
 
 export type JeepStatus = 'driving' | 'terminal' | 'break';
 
-const MAX_CAPACITY = 20;
+export const MIN_MAX_CAP = 20;
+export const MAX_MAX_CAP = 30;
 
 interface AppState {
   isConfigured: boolean;
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (key: string) => string;
   base: Coords | null;
   setBase: (c: Coords) => void;
   // driver identity + state
@@ -20,6 +25,7 @@ interface AppState {
   maxCapacity: number;
   setPlate: (v: string) => void;
   setName: (v: string) => void;
+  setMaxCapacity: (v: number) => void;
   setDriverStatus: (s: JeepStatus) => void;
   adjustCapacity: (delta: number) => void;
 }
@@ -29,6 +35,8 @@ const AppContext = createContext<AppState | undefined>(undefined);
 function randomId() {
   return 'jeep-' + Math.random().toString(36).slice(2, 8);
 }
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export function distanceMeters(a: Coords, b: Coords): number {
   const R = 6371000;
@@ -40,12 +48,13 @@ export function distanceMeters(a: Coords, b: Coords): number {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [base, setBaseState] = useState<Coords | null>(null);
   const [driverId, setDriverId] = useState<string>('');
-  const [plate, setPlateState] = useState('MY JEEP');
+  const [plate, setPlateState] = useState('');
   const [name, setNameState] = useState('Driver');
   const [capacity, setCapacity] = useState(8);
+  const [maxCapacity, setMaxCapacityState] = useState(MIN_MAX_CAP);
   const [status, setStatus] = useState<JeepStatus>('driving');
+  const [lang, setLangState] = useState<Lang>('en');
 
-  // load / create persistent driver identity
   useEffect(() => {
     (async () => {
       try {
@@ -57,13 +66,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setDriverId(id);
         const p = await AsyncStorage.getItem('plate');
         const n = await AsyncStorage.getItem('name');
+        const mc = await AsyncStorage.getItem('maxCapacity');
+        const lg = await AsyncStorage.getItem('lang');
         if (p) setPlateState(p);
         if (n) setNameState(n);
+        if (mc) setMaxCapacityState(clamp(parseInt(mc, 10) || MIN_MAX_CAP, MIN_MAX_CAP, MAX_MAX_CAP));
+        if (lg === 'fil' || lg === 'en') setLangState(lg);
       } catch {
         setDriverId(randomId());
       }
     })();
   }, []);
+
+  const setLang = useCallback((l: Lang) => {
+    setLangState(l);
+    AsyncStorage.setItem('lang', l).catch(() => {});
+  }, []);
+  const t = useCallback((key: string) => translate(lang, key), [lang]);
 
   const setBase = useCallback((c: Coords) => setBaseState(c), []);
   const setPlate = useCallback((v: string) => {
@@ -74,16 +93,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNameState(v);
     AsyncStorage.setItem('name', v).catch(() => {});
   }, []);
+  const setMaxCapacity = useCallback((v: number) => {
+    const mc = clamp(v, MIN_MAX_CAP, MAX_MAX_CAP);
+    setMaxCapacityState(mc);
+    setCapacity((c) => Math.min(c, mc)); // strictly enforce: headcount can't exceed max
+    AsyncStorage.setItem('maxCapacity', String(mc)).catch(() => {});
+  }, []);
   const setDriverStatus = useCallback((s: JeepStatus) => setStatus(s), []);
   const adjustCapacity = useCallback(
-    (delta: number) => setCapacity((c) => Math.max(0, Math.min(MAX_CAPACITY, c + delta))),
-    []
+    (delta: number) => setCapacity((c) => clamp(c + delta, 0, maxCapacity)),
+    [maxCapacity]
   );
 
   return (
     <AppContext.Provider
       value={{
         isConfigured,
+        lang,
+        setLang,
+        t,
         base,
         setBase,
         driverId,
@@ -91,9 +119,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         name,
         capacity,
         status,
-        maxCapacity: MAX_CAPACITY,
+        maxCapacity,
         setPlate,
         setName,
+        setMaxCapacity,
         setDriverStatus,
         adjustCapacity,
       }}

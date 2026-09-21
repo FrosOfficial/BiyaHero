@@ -12,15 +12,21 @@ export interface MapMarker {
   label?: string;
 }
 
+export interface WaitingMarker {
+  id: string;
+  latitude: number;
+  longitude: number;
+}
+
 interface LeafletMapProps {
   center: Coords;
   user: Coords | null;
   markers?: MapMarker[];
+  waiting?: WaitingMarker[];
   style?: StyleProp<ViewStyle>;
 }
 
 function buildHtml(lat: number, lng: number): string {
-  // MapTiler styles are already clean; only filter the raw OSM tiles.
   const tileFilter = useMapTiler
     ? ''
     : '.leaflet-tile-pane{filter:sepia(0.35) saturate(0.8) brightness(1.06) contrast(0.9) hue-rotate(-8deg);}';
@@ -32,14 +38,25 @@ function buildHtml(lat: number, lng: number): string {
 <style>
   html,body,#map{height:100%;margin:0;padding:0;background:#FAF6ED;}
   ${tileFilter}
+  .leaflet-control-zoom a{border:2px solid #18181B !important;color:#18181B !important;font-weight:900;}
 </style>
 </head><body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-  var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${lat}, ${lng}], 15);
+  // Lock the map to Metro Manila + nearby fringes (Bulacan / Cavite / Rizal)
+  var NCR = L.latLngBounds([[14.10, 120.72], [14.98, 121.38]]);
+  var map = L.map('map', {
+    zoomControl: true,
+    attributionControl: false,
+    minZoom: 10,
+    maxBounds: NCR,
+    maxBoundsViscosity: 1.0
+  }).setView([${lat}, ${lng}], 15);
+
   L.tileLayer('${tileUrl}', { maxZoom: 20, ${subdomains} }).addTo(map);
-  var userMarker = null, jeepLayer = L.layerGroup().addTo(map), centeredOnce = false;
+
+  var userMarker = null, jeepLayer = L.layerGroup().addTo(map), waitLayer = L.layerGroup().addTo(map), centeredOnce = false;
 
   function jeepSvg(color) {
     return '<svg width="48" height="32" viewBox="0 0 48 32" xmlns="http://www.w3.org/2000/svg">' +
@@ -63,14 +80,19 @@ function buildHtml(lat: number, lng: number): string {
   window.setMarkers = function(arr) {
     jeepLayer.clearLayers();
     arr.forEach(function(m) {
-      var icon = L.divIcon({
-        html: jeepSvg(m.color),
-        className: '',
-        iconSize: [48, 32],
-        iconAnchor: [24, 28]
-      });
+      var icon = L.divIcon({ html: jeepSvg(m.color), className: '', iconSize: [48, 32], iconAnchor: [24, 28] });
       var mk = L.marker([m.latitude, m.longitude], { icon: icon }).addTo(jeepLayer);
       if (m.label) { mk.bindPopup(m.label); }
+    });
+  };
+
+  window.setWaiting = function(arr) {
+    waitLayer.clearLayers();
+    arr.forEach(function(w) {
+      var html = '<div style="width:26px;height:26px;border:2.5px solid #18181B;border-radius:50%;background:#8338EC;display:flex;align-items:center;justify-content:center;font-size:15px;">\\uD83E\\uDDCD</div>';
+      var icon = L.divIcon({ html: html, className: '', iconSize: [26, 26], iconAnchor: [13, 13] });
+      var mk = L.marker([w.latitude, w.longitude], { icon: icon }).addTo(waitLayer);
+      mk.bindPopup('Rider waiting here');
     });
   };
 
@@ -78,7 +100,7 @@ function buildHtml(lat: number, lng: number): string {
 </script></body></html>`;
 }
 
-export default function LeafletMap({ center, user, markers = [], style }: LeafletMapProps) {
+export default function LeafletMap({ center, user, markers = [], waiting = [], style }: LeafletMapProps) {
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const source = useMemo(() => ({ html: buildHtml(center.latitude, center.longitude) }), []);
@@ -95,6 +117,12 @@ export default function LeafletMap({ center, user, markers = [], style }: Leafle
     }
   }, [ready, markers]);
 
+  useEffect(() => {
+    if (ready && ref.current) {
+      ref.current.injectJavaScript(`window.setWaiting(${JSON.stringify(waiting)}); true;`);
+    }
+  }, [ready, waiting]);
+
   return (
     <WebView
       ref={ref}
@@ -103,6 +131,7 @@ export default function LeafletMap({ center, user, markers = [], style }: Leafle
       style={style}
       javaScriptEnabled
       domStorageEnabled
+      nestedScrollEnabled
       onMessage={(e) => {
         if (e.nativeEvent.data === 'ready') setReady(true);
       }}

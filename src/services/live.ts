@@ -1,4 +1,4 @@
-import { ref, set, remove, onValue, push, onDisconnect } from 'firebase/database';
+import { ref, set, remove, onValue, push } from 'firebase/database';
 import { db } from '../firebase';
 
 export interface LiveJeep {
@@ -13,18 +13,17 @@ export interface LiveJeep {
   updatedAt: number;
 }
 
-export interface Ping {
+export interface WaitingPing {
+  id: string;
   latitude: number;
   longitude: number;
   ts: number;
 }
 
-// Driver: write live position; auto-remove if the app disconnects.
+// Driver: broadcast live position
 export function broadcastJeep(j: LiveJeep) {
   if (!db) return;
-  const r = ref(db, `jeeps/${j.id}`);
-  set(r, { ...j, updatedAt: Date.now() });
-  onDisconnect(r).remove();
+  set(ref(db, `jeeps/${j.id}`), { ...j, updatedAt: Date.now() });
 }
 
 export function removeJeep(id: string) {
@@ -32,34 +31,43 @@ export function removeJeep(id: string) {
   remove(ref(db, `jeeps/${id}`));
 }
 
-// Commuter: listen to all live jeeps. Returns an unsubscribe fn.
+// Commuter: listen to all live jeeps
 export function subscribeJeeps(cb: (jeeps: LiveJeep[]) => void): () => void {
   if (!db) {
     cb([]);
     return () => {};
   }
-  const r = ref(db, 'jeeps');
-  return onValue(r, (snap) => {
+  return onValue(ref(db, 'jeeps'), (snap) => {
     const v = (snap.val() as Record<string, LiveJeep>) || {};
     cb(Object.values(v));
   });
 }
 
-// Commuter: drop a "waiting here" ping.
-export function dropPing(latitude: number, longitude: number) {
+// Commuter: drop a "waiting here" ping at the rider's ACTUAL location
+export function dropWaiting(latitude: number, longitude: number) {
   if (!db) return;
-  push(ref(db, 'pings'), { latitude, longitude, ts: Date.now() });
+  push(ref(db, 'waiting'), { latitude, longitude, ts: Date.now() });
 }
 
-// Driver: listen to waiting pings.
-export function subscribePings(cb: (pings: Ping[]) => void): () => void {
+// Remove a specific waiting ping (e.g. a jeep with open seats passed it, or the rider boarded)
+export function removeWaiting(id: string) {
+  if (!db) return;
+  remove(ref(db, `waiting/${id}`));
+}
+
+// Both: listen to recent waiting pings (last 15 min), each at its real location
+const RECENT_MS = 15 * 60 * 1000;
+export function subscribeWaiting(cb: (pings: WaitingPing[]) => void): () => void {
   if (!db) {
     cb([]);
     return () => {};
   }
-  const r = ref(db, 'pings');
-  return onValue(r, (snap) => {
-    const v = (snap.val() as Record<string, Ping>) || {};
-    cb(Object.values(v));
+  return onValue(ref(db, 'waiting'), (snap) => {
+    const v = (snap.val() as Record<string, { latitude: number; longitude: number; ts: number }>) || {};
+    const now = Date.now();
+    const out: WaitingPing[] = Object.entries(v)
+      .map(([id, p]) => ({ id, ...(p || {}) } as WaitingPing))
+      .filter((p) => typeof p.latitude === 'number' && typeof p.ts === 'number' && now - p.ts < RECENT_MS);
+    cb(out);
   });
 }
