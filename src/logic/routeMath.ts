@@ -72,6 +72,25 @@ export function progressOnRoute(p: LatLng, dir: Direction): Progress {
   return best;
 }
 
+/** The [lat, lng] point at a distance `along` (meters) down the line. Used to
+ *  glide the ride map smoothly along the route instead of jumping with raw GPS. */
+export function pointAlong(dir: Direction, along: number): LatLng {
+  const { pts, cum } = lineData(dir);
+  if (pts.length === 0) return { latitude: 0, longitude: 0 };
+  const total = cum[cum.length - 1] || 0;
+  const d = Math.max(0, Math.min(along, total));
+  for (let i = 1; i < pts.length; i++) {
+    if (cum[i] >= d) {
+      const seg = cum[i] - cum[i - 1] || 1;
+      const t = (d - cum[i - 1]) / seg;
+      const a = tuple(pts[i - 1]);
+      const b = tuple(pts[i]);
+      return { latitude: a.latitude + t * (b.latitude - a.latitude), longitude: a.longitude + t * (b.longitude - a.longitude) };
+    }
+  }
+  return tuple(pts[pts.length - 1]);
+}
+
 /** Position of each stop (in stopsFor(dir) order) along the line, in meters. */
 const offsetCache: Partial<Record<Direction, number[]>> = {};
 export function stopOffsets(dir: Direction): number[] {

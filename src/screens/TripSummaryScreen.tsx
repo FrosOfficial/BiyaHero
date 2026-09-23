@@ -17,9 +17,10 @@ interface Props {
   month: MonthTotals | null;
   discounted: boolean;
   onDone: () => void;
+  onHistory: () => void;
 }
 
-export default function TripSummaryScreen({ trip, month, discounted, onDone }: Props) {
+export default function TripSummaryScreen({ trip, month, discounted, onDone, onHistory }: Props) {
   const { t } = useApp();
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.scroll}>
@@ -71,7 +72,10 @@ export default function TripSummaryScreen({ trip, month, discounted, onDone }: P
       </View>
 
       {month ? (
-        <NeoCard style={styles.card} tag={`★ ${t('thisMonth').toUpperCase()}`} tagColor={PALETTE.purple}>
+        <NeoCard style={styles.card}>
+          <View style={styles.monthHead}>
+            <Text style={styles.monthTitle}>★ {t('thisMonth').toUpperCase()}</Text>
+          </View>
           <View style={styles.monthRow}>
             <View style={styles.monthCell}>
               <Text style={styles.monthNum}>{peso(month.saved)}</Text>
@@ -89,8 +93,14 @@ export default function TripSummaryScreen({ trip, month, discounted, onDone }: P
         </NeoCard>
       ) : null}
 
-      <Text style={styles.note}>{t('fareNote')}</Text>
       <NeoButton label={t('done')} color={PALETTE.mint} onPress={onDone} />
+      <NeoButton
+        label={t('tripHistory')}
+        color={PALETTE.cardBg}
+        small
+        icon={<Ionicons name="time-outline" size={18} color={PALETTE.text} />}
+        onPress={onHistory}
+      />
       <View style={{ height: 12 }} />
     </ScrollView>
   );
@@ -126,8 +136,9 @@ const styles = StyleSheet.create({
   tile: { flex: 1, alignItems: 'center', gap: 2 },
   tileNum: { fontSize: 24, fontWeight: FONT.black, color: PALETTE.text },
   tileLabel: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted, textAlign: 'center' },
-  monthRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+  monthHead: { alignSelf: 'flex-start', backgroundColor: PALETTE.purple, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
+  monthTitle: { fontSize: 11, fontWeight: FONT.black, color: '#FFFFFF', letterSpacing: 0.5 },
+  monthRow: { flexDirection: 'row', justifyContent: 'space-between' },
   monthCell: { flex: 1, alignItems: 'center' },
   monthNum: { fontSize: 20, fontWeight: FONT.black, color: PALETTE.purple },
-  note: { fontSize: 11, fontWeight: FONT.semibold, color: PALETTE.textMuted, textAlign: 'center' },
 });

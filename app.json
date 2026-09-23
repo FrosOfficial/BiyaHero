@@ -2,7 +2,7 @@
   "expo": {
     "name": "BiyaHero",
     "slug": "biyahero",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FAF6ED",

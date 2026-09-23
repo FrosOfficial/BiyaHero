@@ -6,7 +6,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { useApp } from '../context/AppContext';
 import { Coords } from '../hooks/useLocation';
 import { Direction, stopsFor, lineFor } from '../data/route';
-import { progressOnRoute, ridePhase, stopOffsets, nextStopIndex, nearestStopIndex } from '../logic/routeMath';
+import { progressOnRoute, ridePhase, stopOffsets, nextStopIndex, nearestStopIndex, pointAlong } from '../logic/routeMath';
 import { PALETTE, FONT } from '../theme/theme';
 import NeoCard from '../components/NeoCard';
 import NeoButton from '../components/NeoButton';
@@ -19,6 +19,7 @@ interface Props {
   coords: Coords;
   accuracy: number | null; // GPS accuracy in meters (smaller = better)
   direction: Direction;
+  boardIndex: number; // the stop you got on at (the strip starts here)
   destIndex: number;
   markers: MapMarker[];
   onArrive: () => void; // arrived or tapped "I got off"
@@ -29,8 +30,8 @@ interface Props {
 // meters can't tell "at my stop" from "one street over", so we wait for the tap.
 const AUTO_ARRIVE_MAX_ACCURACY = 45;
 
-export default function RideScreen({ coords, accuracy, direction, destIndex, markers, onArrive, onCancel }: Props) {
-  const { t, lang, voiceMuted, setVoiceMuted, driverId } = useApp();
+export default function RideScreen({ coords, accuracy, direction, boardIndex, destIndex, markers, onArrive, onCancel }: Props) {
+  const { t, lang, voiceMuted, setVoiceMuted, deviceId } = useApp();
   useKeepAwake(); // screen stays on so the alert can fire
 
   const stops = useMemo(() => stopsFor(direction), [direction]);
@@ -48,9 +49,9 @@ export default function RideScreen({ coords, accuracy, direction, destIndex, mar
   // Rider-powered tracking: while on board, publish an anonymous jeep sighting.
   // Your phone is already tracking you for the alert, so this is free.
   useEffect(() => {
-    if (driverId) publishSighting(driverId, coords.latitude, coords.longitude, direction);
-  }, [driverId, coords.latitude, coords.longitude, direction]);
-  useEffect(() => () => { if (driverId) removeSighting(driverId); }, [driverId]);
+    if (deviceId) publishSighting(deviceId, coords.latitude, coords.longitude, direction);
+  }, [deviceId, coords.latitude, coords.longitude, direction]);
+  useEffect(() => () => { if (deviceId) removeSighting(deviceId); }, [deviceId]);
 
   const prog = progressOnRoute(coords, direction);
   const phase = ridePhase(prog.along, direction, destIndex);
@@ -59,6 +60,14 @@ export default function RideScreen({ coords, accuracy, direction, destIndex, mar
   const stopsLeft = Math.max(0, destIndex - nextIdx + 1);
   const kmLeft = Math.max(0, (offsets[destIndex] - prog.along) / 1000);
   const offRoute = prog.offRoute > 250;
+
+  // The map follows the rider's snapped spot on the line (a touch ahead so the
+  // stop coming up stays in view). Snapping to the line keeps it from wiggling
+  // with GPS noise, so it glides stop to stop on its own.
+  const followPoint = useMemo(
+    () => (offRoute ? coords : pointAlong(direction, prog.along + 90)),
+    [offRoute, direction, prog.along, coords.latitude, coords.longitude]
+  );
 
   // fire the "get ready" alert once
   const warned = useRef(false);
@@ -117,7 +126,7 @@ export default function RideScreen({ coords, accuracy, direction, destIndex, mar
   return (
     <View style={styles.flex}>
       <View style={styles.mapWrap}>
-        <LeafletMap style={styles.flex} center={coords} user={coords} markers={markers} stops={stopMarkers} line={line} badgeSide={direction === 'toPRC' ? 'right' : 'left'} />
+        <LeafletMap style={styles.flex} center={coords} user={coords} follow={followPoint} followZoom={16} markers={markers} stops={stopMarkers} line={line} />
       </View>
 
       <ScrollView style={styles.flex} contentContainerStyle={styles.scroll}>
@@ -172,24 +181,28 @@ export default function RideScreen({ coords, accuracy, direction, destIndex, mar
           ) : null}
         </NeoCard>
 
-        {/* stop strip: where you are on the line */}
+        {/* stop strip: every stop from where you got on to your stop. Stops you've
+            passed stay on the list, crossed out with a check, so you can see progress. */}
         <NeoCard style={styles.card}>
-          {stops.slice(Math.min(nearIdx, destIndex), destIndex + 1).map((s, i, arr) => {
+          {stops.slice(Math.min(boardIndex, destIndex), destIndex + 1).map((s, i, arr) => {
             const isDest = s.id === dest.id;
-            const passed = offsets[stops.indexOf(s)] < prog.along - 40;
+            const passed = !isDest && offsets[stops.indexOf(s)] < prog.along - 40;
             return (
               <View key={s.id} style={styles.stripRow}>
                 <View style={styles.stripRail}>
                   <View
                     style={[
                       styles.dot,
-                      { backgroundColor: isDest ? PALETTE.coral : passed ? PALETTE.textMuted : PALETTE.cardBg },
+                      isDest && { backgroundColor: PALETTE.coral, borderColor: PALETTE.coral },
+                      passed && { backgroundColor: PALETTE.mint, borderColor: PALETTE.mint },
                     ]}
-                  />
-                  {i < arr.length - 1 ? <View style={styles.rail} /> : null}
+                  >
+                    {passed ? <Ionicons name="checkmark" size={10} color="#FFFFFF" /> : null}
+                  </View>
+                  {i < arr.length - 1 ? <View style={[styles.rail, passed && { backgroundColor: PALETTE.mint }]} /> : null}
                 </View>
                 <Text style={[styles.stripText, isDest && styles.stripDest, passed && styles.stripPassed]}>{s.name}</Text>
-                {passed ? <Ionicons name="checkmark" size={16} color={PALETTE.mint} /> : null}
+                {passed ? <Ionicons name="checkmark-circle" size={16} color={PALETTE.mint} /> : null}
               </View>
             );
           })}
@@ -219,36 +232,36 @@ export default function RideScreen({ coords, accuracy, direction, destIndex, mar
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: PALETTE.bg },
-  mapWrap: { height: 230, borderBottomWidth: 1, borderColor: PALETTE.border },
-  scroll: { padding: 16, gap: 14 },
+  mapWrap: { height: 320, borderBottomWidth: 1, borderColor: PALETTE.border },
+  scroll: { padding: 12, gap: 9 },
   card: { backgroundColor: PALETTE.cardBg },
-  paraBig: { fontSize: 40, fontWeight: FONT.black, color: '#FFFFFF', textAlign: 'center', letterSpacing: 1 },
-  paraSub: { fontSize: 14, fontWeight: FONT.bold, color: '#FFFFFF', textAlign: 'center', marginTop: 4 },
-  label: { fontSize: 12, fontWeight: FONT.bold, color: PALETTE.textMuted },
-  dest: { fontSize: 26, fontWeight: FONT.black, color: PALETTE.text, marginBottom: 12 },
-  statRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  paraBig: { fontSize: 28, fontWeight: FONT.black, color: '#FFFFFF', textAlign: 'center', letterSpacing: 1 },
+  paraSub: { fontSize: 12.5, fontWeight: FONT.bold, color: '#FFFFFF', textAlign: 'center', marginTop: 2 },
+  label: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted },
+  dest: { fontSize: 20, fontWeight: FONT.black, color: PALETTE.text, marginBottom: 8 },
+  statRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
   stat: {
     flex: 1,
     borderWidth: 1,
     borderColor: PALETTE.border,
-    borderRadius: 12,
-    paddingVertical: 8,
+    borderRadius: 10,
+    paddingVertical: 5,
     alignItems: 'center',
     backgroundColor: PALETTE.bg,
   },
-  statNum: { fontSize: 28, fontWeight: FONT.black, color: PALETTE.blue },
-  statLabel: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted },
-  now: { fontSize: 14, fontWeight: FONT.semibold, color: PALETTE.textMuted },
+  statNum: { fontSize: 22, fontWeight: FONT.black, color: PALETTE.blue },
+  statLabel: { fontSize: 10, fontWeight: FONT.bold, color: PALETTE.textMuted },
+  now: { fontSize: 12.5, fontWeight: FONT.semibold, color: PALETTE.textMuted },
   nowStrong: { fontWeight: FONT.black, color: PALETTE.text },
-  warn: { fontSize: 13, fontWeight: FONT.bold, color: PALETTE.coral },
-  stripRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  gpsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
-  gpsText: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted },
-  stripRail: { alignItems: 'center', width: 16 },
-  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: PALETTE.border },
-  rail: { width: 3, height: 18, backgroundColor: PALETTE.blue },
-  stripText: { fontSize: 14, fontWeight: FONT.bold, color: PALETTE.text, lineHeight: 16 },
+  warn: { fontSize: 12.5, fontWeight: FONT.bold, color: PALETTE.coral },
+  stripRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  gpsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7 },
+  gpsText: { fontSize: 10.5, fontWeight: FONT.bold, color: PALETTE.textMuted },
+  stripRail: { alignItems: 'center', width: 14 },
+  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1, borderColor: PALETTE.border, backgroundColor: PALETTE.cardBg, alignItems: 'center', justifyContent: 'center' },
+  rail: { width: 3, height: 14, backgroundColor: PALETTE.blue },
+  stripText: { fontSize: 12.5, fontWeight: FONT.bold, color: PALETTE.text, lineHeight: 15 },
   stripDest: { fontWeight: FONT.black, color: PALETTE.coral },
   stripPassed: { color: PALETTE.textMuted, textDecorationLine: 'line-through' },
-  hint: { fontSize: 12, fontWeight: FONT.semibold, color: PALETTE.textMuted, textAlign: 'center' },
+  hint: { fontSize: 11, fontWeight: FONT.semibold, color: PALETTE.textMuted, textAlign: 'center' },
 });

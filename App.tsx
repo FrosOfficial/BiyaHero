@@ -1,20 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppProvider, useApp } from './src/context/AppContext';
+import { AppProvider } from './src/context/AppContext';
 import { PALETTE, FONT } from './src/theme/theme';
 import TermsScreen from './src/screens/TermsScreen';
-import RoleSelectScreen, { Role } from './src/screens/RoleSelectScreen';
 import CommuterScreen from './src/screens/CommuterScreen';
-import DriverScreen from './src/screens/DriverScreen';
+import LanguageToggle from './src/components/LanguageToggle';
 import './src/services/rideAlert'; // registers the background stop-alert task
 
 function Root() {
-  const { t } = useApp();
-  const [role, setRole] = useState<Role | null>(null);
   const [accepted, setAccepted] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -30,22 +26,16 @@ function Root() {
 
   if (accepted === null) return <View style={styles.flex} />;
   if (!accepted) return <TermsScreen onAccept={accept} />;
-  if (role === null) return <RoleSelectScreen onSelect={setRole} />;
 
   return (
     <View style={styles.flex}>
       <SafeAreaView edges={['top']} style={styles.barWrap}>
         <View style={styles.bar}>
-          <Pressable style={styles.switchBtn} onPress={() => setRole(null)}>
-            <Ionicons name="swap-horizontal" size={16} color={PALETTE.text} />
-            <Text style={styles.switchText}>{t('switch')}</Text>
-          </Pressable>
-          <Text style={styles.barTitle}>{role === 'commuter' ? t('commuter') : t('driver')}</Text>
-          <View style={{ width: 72 }} />
+          <Text style={styles.barTitle}>BiyaHero</Text>
+          <LanguageToggle />
         </View>
       </SafeAreaView>
-      {role === 'commuter' && <CommuterScreen />}
-      {role === 'driver' && <DriverScreen />}
+      <CommuterScreen />
     </View>
   );
 }
@@ -74,17 +64,5 @@ const styles = StyleSheet.create({
     borderBottomColor: PALETTE.border,
     backgroundColor: PALETTE.cardBg,
   },
-  switchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: PALETTE.yellow,
-  },
-  switchText: { fontSize: 12, fontWeight: FONT.black, color: PALETTE.text },
   barTitle: { fontSize: 18, fontWeight: FONT.black, color: PALETTE.text },
 });

@@ -1,54 +1,31 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Pressable, Switch } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Pressable, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp, distanceMeters } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { useLocation } from '../hooks/useLocation';
-import { subscribeJeeps, subscribeWaiting, dropWaiting, reportDropoff, waitingByStop, subscribeSightings, LiveJeep, WaitingPing, Sighting } from '../services/live';
-import { clusterSightings, dropOverlaps } from '../logic/crowd';
-import { stopsFor, lineFor, RouteStop } from '../data/route';
+import { subscribeSightings, Sighting } from '../services/live';
+import { clusterSightings, CrowdJeep } from '../logic/crowd';
+import { stopsFor, lineFor } from '../data/route';
 import { etaMinutes, progressOnRoute, nearestStopIndex, summarizeTrip, TripSummary } from '../logic/routeMath';
 import { recordTrip, MonthTotals } from '../services/trips';
 import { PALETTE, FONT } from '../theme/theme';
 import NeoButton from '../components/NeoButton';
 import NeoCard from '../components/NeoCard';
-import DirectionToggle from '../components/DirectionToggle';
-import StatusMeterPill, { levelFromRatio } from '../components/StatusMeterPill';
+import RoutePicker from '../components/RoutePicker';
 import LeafletMap, { MapMarker, StopMarker } from '../components/LeafletMap';
 import RideScreen from './RideScreen';
 import TripSummaryScreen from './TripSummaryScreen';
+import TripHistoryScreen from './TripHistoryScreen';
 
-const FRESH_MS = 25000;
-const COOLDOWN = 60; // seconds between waiting pings
-const capColor = (ratio: number) => {
-  const l = levelFromRatio(ratio);
-  return l === 'sabit' ? PALETTE.coral : l === 'squeezed' ? PALETTE.yellow : PALETTE.mint;
-};
+const MAX_PINS = 5; // only the next few jeeps coming your way are drawn, so the map stays readable
 
-type Mode = 'map' | 'pick' | 'wait' | 'ride' | 'summary';
-
-// a jeep on the map: either a real driver broadcast, or a crowd of riders
-type UJeep = {
-  id: string;
-  latitude: number;
-  longitude: number;
-  direction?: 'toPRC' | 'toMantrade';
-  source: 'driver' | 'crowd';
-  plateNumber?: string;
-  driverName?: string;
-  capacityCount?: number;
-  maxCapacity?: number;
-  riders?: number;
-};
+type Mode = 'map' | 'pick' | 'ride' | 'summary' | 'history';
 
 export default function CommuterScreen() {
   const { isConfigured, setBase, t, riderDirection: dir, setRiderDirection, discounted, setDiscounted } = useApp();
   const { coords, accuracy, perm } = useLocation();
-  const [jeeps, setJeeps] = useState<LiveJeep[]>([]);
-  const [waiting, setWaiting] = useState<WaitingPing[]>([]);
   const [sightings, setSightings] = useState<Sighting[]>([]);
-  const [cooldown, setCooldown] = useState(0);
   const [now, setNow] = useState(Date.now());
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ride-mode state
   const [mode, setMode] = useState<Mode>('map');
@@ -57,18 +34,13 @@ export default function CommuterScreen() {
   const rideStart = useRef(0);
   const [trip, setTrip] = useState<TripSummary | null>(null);
   const [month, setMonth] = useState<MonthTotals | null>(null);
-  // the stop you said you're waiting at (used instead of jumpy GPS for ETA)
-  const [waitStop, setWaitStop] = useState<RouteStop | null>(null);
-
+  const [historyBack, setHistoryBack] = useState<Mode>('map'); // where "back" goes from Trip History
   useEffect(() => {
     if (coords) setBase(coords);
   }, [coords, setBase]);
 
-  useEffect(() => subscribeJeeps(setJeeps), []);
-  useEffect(() => subscribeWaiting(setWaiting), []);
   useEffect(() => subscribeSightings(setSightings), []);
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
-  // re-check freshness every 5 s so jeeps that went offline disappear
+  // re-check freshness every 5 s so jeeps whose riders went offline disappear
   useEffect(() => {
     const i = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(i);
@@ -76,95 +48,60 @@ export default function CommuterScreen() {
 
   const stops = useMemo(() => stopsFor(dir), [dir]);
   const line = useMemo(() => lineFor(dir), [dir]);
-  // forget the chosen stop if you switch direction or it has been 15 min
-  useEffect(() => { setWaitStop(null); }, [dir]);
-  useEffect(() => {
-    if (!waitStop) return;
-    const timer = setTimeout(() => setWaitStop(null), 15 * 60 * 1000); // pings expire after 15 min
-    return () => clearTimeout(timer);
-  }, [waitStop]);
-  const waitCounts = useMemo(() => waitingByStop(waiting, dir), [waiting, dir]);
-  const riderSpot = waitStop ?? coords; // ETA is measured from your stop when you picked one
-
-  const liveJeeps = useMemo(
-    () => jeeps.filter((j) => j.status === 'driving' && now - j.updatedAt < FRESH_MS),
-    [jeeps, now]
+  // the stop you're at (nearest stop on the line to your GPS)
+  const hereIndex = useMemo(
+    () => (coords ? nearestStopIndex(progressOnRoute(coords, dir).along, dir) : 0),
+    [coords, dir]
   );
 
-  // Rider-powered pins: cluster on-board riders into jeeps, minus any that sit
-  // on top of a real driver jeep (the driver's exact data wins).
-  const unified = useMemo<UJeep[]>(() => {
-    const crowd = dropOverlaps(clusterSightings(sightings), liveJeeps);
-    return [
-      ...liveJeeps.map((j): UJeep => ({
-        id: j.id, latitude: j.latitude, longitude: j.longitude, direction: j.direction,
-        source: 'driver', plateNumber: j.plateNumber, driverName: j.driverName,
-        capacityCount: j.capacityCount, maxCapacity: j.maxCapacity,
-      })),
-      ...crowd.map((c): UJeep => ({
-        id: c.id, latitude: c.latitude, longitude: c.longitude, direction: c.direction,
-        source: 'crowd', riders: c.riders,
-      })),
-    ];
-  }, [liveJeeps, sightings]);
+  // Rider-powered pins: everyone on a ride alert reports where they are, and
+  // riders on the same jeep are grouped into ONE pin (see logic/crowd.ts).
+  const unified = useMemo<CrowdJeep[]>(() => clusterSightings(sightings, now), [sightings, now]);
 
   // jeeps heading YOUR way that have not passed you yet, with ETA along the route
   const approaching = useMemo(() => {
-    if (!riderSpot) return [];
+    if (!coords) return [];
     return unified
-      .map((j) => ({ j, eta: etaMinutes(j, riderSpot, dir) }))
-      .filter((x): x is { j: UJeep; eta: number } => x.eta !== null)
+      .map((j) => ({ j, eta: etaMinutes(j, coords, dir) }))
+      .filter((x): x is { j: CrowdJeep; eta: number } => x.eta !== null)
       .sort((a, b) => a.eta - b.eta);
-  }, [unified, riderSpot, dir]);
+  }, [unified, coords, dir]);
   const featured = approaching[0];
 
+  // Only the next few jeeps coming toward you are drawn. Jeeps going the other
+  // way, or that already passed you, are hidden so the map never fills up.
   const markers: MapMarker[] = useMemo(
     () =>
-      unified.map((j) => {
-        const a = approaching.find((x) => x.j.id === j.id);
-        const isDriver = j.source === 'driver';
-        const ratio = isDriver ? (j.capacityCount! / j.maxCapacity!) : 0;
-        return {
-          id: j.id,
-          latitude: j.latitude,
-          longitude: j.longitude,
-          color: a ? (isDriver ? capColor(ratio) : PALETTE.blue) : '#D4D4D8',
-          label: a
-            ? (isDriver
-                ? `${j.plateNumber} · ${a.eta} min · ${j.capacityCount}/${j.maxCapacity}`
-                : `~${j.riders} aboard · ${a.eta} min`)
-            : (isDriver ? `${j.plateNumber}` : t('riderTracked')),
-        };
-      }),
-    [unified, approaching, t]
+      approaching.slice(0, MAX_PINS).map(({ j, eta }) => ({
+        id: j.id,
+        latitude: j.latitude,
+        longitude: j.longitude,
+        color: PALETTE.blue,
+        label: `${j.riders} ${j.riders === 1 ? t('riderWord') : t('ridersWord')} · ${eta} min`,
+      })),
+    [approaching, t]
   );
   const stopMarkers: StopMarker[] = useMemo(
     () =>
-      stops.map((s) => ({
+      stops.map((s, i) => ({
         id: s.id,
         latitude: s.latitude,
         longitude: s.longitude,
         name: s.short,
-        kind: waitStop?.id === s.id ? 'next' : 'stop',
-        waiting: waitCounts[s.id] ?? 0,
+        kind: i === hereIndex ? 'next' : 'stop', // highlight the stop you're at
       })),
-    [stops, waitCounts, waitStop]
+    [stops, hereIndex]
   );
 
   const onArrive = useCallback(() => {
     if (!coords) return;
-    const minutes = (Date.now() - rideStart.current) / 60000;
+    const endedAt = Date.now();
+    const minutes = (endedAt - rideStart.current) / 60000;
     const summary = summarizeTrip(dir, boardIndex, destIndex, minutes, discounted);
-    // free a seat on the jeep you were riding (nearest live jeep going your way)
-    const onJeep = liveJeeps
-      .filter((j) => !j.direction || j.direction === dir)
-      .map((j) => ({ j, d: distanceMeters(coords, j) }))
-      .sort((a, b) => a.d - b.d)[0];
-    if (onJeep && onJeep.d < 120) reportDropoff(onJeep.j.id);
     setTrip(summary);
     setMode('summary');
-    recordTrip(summary).then(setMonth);
-  }, [coords, dir, boardIndex, destIndex, discounted, liveJeeps]);
+    recordTrip(summary, { startedAt: rideStart.current, endedAt, direction: dir, discounted }).then(setMonth);
+  }, [coords, dir, boardIndex, destIndex, discounted]);
 
   if (perm === 'denied') {
     return (
@@ -191,6 +128,7 @@ export default function CommuterScreen() {
         coords={coords}
         accuracy={accuracy}
         direction={dir}
+        boardIndex={boardIndex}
         destIndex={destIndex}
         markers={markers}
         onArrive={onArrive}
@@ -199,44 +137,21 @@ export default function CommuterScreen() {
     );
   }
   if (mode === 'summary' && trip) {
-    return <TripSummaryScreen trip={trip} month={month} discounted={discounted} onDone={() => setMode('map')} />;
-  }
-
-  // where you are on the route: the stop you picked, or the stop nearest your GPS
-  const pickedIndex = waitStop ? stops.findIndex((s) => s.id === waitStop.id) : -1;
-  const hereIndex = pickedIndex >= 0 ? pickedIndex : nearestStopIndex(progressOnRoute(coords, dir).along, dir);
-
-  // ---------- which stop are you waiting at? ----------
-  if (mode === 'wait') {
-    // nearest stop first, then the rest in route order (last stop has no jeeps leaving)
-    const options = stops.slice(0, -1).map((s, i) => ({ s, i }));
-    options.sort((a, b) => (a.i === hereIndex ? -1 : b.i === hereIndex ? 1 : a.i - b.i));
     return (
-      <ScrollView style={styles.flex} contentContainerStyle={styles.pickScroll}>
-        <Text style={styles.pickTitle}>{t('whichStop')}</Text>
-        <Text style={styles.msgLeft}>{t('whichStopHint')}</Text>
-        <DirectionToggle value={dir} onChange={setRiderDirection} />
-        {options.map(({ s, i }) => (
-          <Pressable
-            key={s.id}
-            style={[styles.stopRow, i === hereIndex && { backgroundColor: PALETTE.yellow }]}
-            onPress={() => {
-              dropWaiting(s, dir);
-              setWaitStop(s);
-              setMode('map');
-              startCooldown();
-              Alert.alert(t('pingSentTitle'), `${t('waitingAt')} ${s.name}. ${t('pingSentBody')}`);
-            }}
-          >
-            <Text style={styles.stopName}>{s.name}</Text>
-            {i === hereIndex ? <Text style={styles.nearTag}>{t('nearest')}</Text> : null}
-            {waitCounts[s.id] ? <Text style={styles.stopMeta}>{waitCounts[s.id]} {t('waitingShort')}</Text> : null}
-            <Ionicons name="hand-left" size={18} color={PALETTE.text} />
-          </Pressable>
-        ))}
-        <NeoButton label={t('cancel')} color={PALETTE.cardBg} small onPress={() => setMode('map')} />
-      </ScrollView>
+      <TripSummaryScreen
+        trip={trip}
+        month={month}
+        discounted={discounted}
+        onDone={() => setMode('map')}
+        onHistory={() => {
+          setHistoryBack('summary');
+          setMode('history');
+        }}
+      />
     );
+  }
+  if (mode === 'history') {
+    return <TripHistoryScreen onBack={() => setMode(historyBack === 'summary' && trip ? 'summary' : 'map')} />;
   }
 
   // ---------- pick your stop ----------
@@ -246,7 +161,7 @@ export default function CommuterScreen() {
       <ScrollView style={styles.flex} contentContainerStyle={styles.pickScroll}>
         <Text style={styles.pickTitle}>{t('whereOff')}</Text>
         <Text style={styles.msgLeft}>{t('pickStopHint')}</Text>
-        <DirectionToggle value={dir} onChange={setRiderDirection} />
+        <RoutePicker value={dir} onChange={setRiderDirection} />
         <Text style={styles.fromHere}>
           <Ionicons name="location" size={14} color={PALETTE.blue} /> {stops[hereIndex].name}
         </Text>
@@ -257,7 +172,6 @@ export default function CommuterScreen() {
             onPress={() => {
               setBoardIndex(hereIndex);
               setDestIndex(i);
-              setWaitStop(null); // you're on board now
               rideStart.current = Date.now();
               setMode('ride');
             }}
@@ -283,24 +197,11 @@ export default function CommuterScreen() {
 
   // ---------- main map ----------
   const j = featured?.j;
-  const isDriver = j?.source === 'driver';
-  const ratio = isDriver ? j!.capacityCount! / j!.maxCapacity! : 0;
-  const seatsLeft = isDriver ? j!.maxCapacity! - j!.capacityCount! : 0;
-
-  function startCooldown() {
-    setCooldown(COOLDOWN);
-    if (timer.current) clearInterval(timer.current);
-    timer.current = setInterval(() => {
-      setCooldown((c) => {
-        if (c <= 1 && timer.current) clearInterval(timer.current);
-        return c - 1;
-      });
-    }, 1000);
-  }
+  const moreComing = Math.max(0, approaching.length - 1);
 
   return (
     <View style={styles.flex}>
-      <LeafletMap style={styles.map} center={coords} user={coords} markers={markers} stops={stopMarkers} line={line} badgeSide={dir === 'toPRC' ? 'right' : 'left'} />
+      <LeafletMap style={styles.map} center={coords} user={coords} markers={markers} stops={stopMarkers} line={line} />
 
       {!isConfigured && (
         <View style={styles.banner}>
@@ -309,14 +210,15 @@ export default function CommuterScreen() {
       )}
 
       <View style={styles.sheet}>
-        <DirectionToggle value={dir} onChange={setRiderDirection} />
+        <RoutePicker value={dir} onChange={setRiderDirection} />
         {j && featured ? (
           <>
             <View style={styles.sheetTop}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.plate}>{isDriver ? j.plateNumber : t('riderTracked')}</Text>
+                <Text style={styles.plate}>{t('jeepComing')}</Text>
                 <Text style={styles.driver}>
-                  {isDriver ? j.driverName : `~${j.riders} ${t('aboardWord')}`} · {waitStop ? `${t('toYourStop')} ${waitStop.short}` : t('nearestJeep')}
+                  {`${t('toYourStop')} ${stops[hereIndex].short}`}
+                  {moreComing > 0 ? ` · +${moreComing} ${t('moreBehind')}` : ''}
                 </Text>
               </View>
               <View style={styles.etaBox}>
@@ -324,43 +226,34 @@ export default function CommuterScreen() {
                 <Text style={styles.etaLabel}>{t('minAway')}</Text>
               </View>
             </View>
-            {isDriver ? (
-              <>
-                <View style={styles.gaugeTrack}>
-                  <View style={[styles.gaugeFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: capColor(ratio) }]} />
-                </View>
-                <View style={styles.statsRow}>
-                  <StatusMeterPill level={levelFromRatio(ratio)} label={t(levelFromRatio(ratio))} />
-                  <Text style={styles.seatText}>{seatsLeft > 0 ? `${seatsLeft} ${t('seatsLeft')}` : t('sabit')} · {j.capacityCount}/{j.maxCapacity}</Text>
-                </View>
-              </>
-            ) : (
-              <View style={styles.crowdRow}>
-                <Ionicons name="people" size={16} color={PALETTE.blue} />
-                <Text style={styles.crowdText}>{t('riderTrackedHint')}</Text>
-              </View>
-            )}
+            <View style={styles.crowdRow}>
+              <Ionicons name="people" size={16} color={PALETTE.blue} />
+              <Text style={styles.crowdText}>
+                {j.riders} {j.riders === 1 ? t('riderWord') : t('ridersWord')} {t('withAppAboard')}
+              </Text>
+            </View>
           </>
         ) : (
-          <Text style={styles.msg}>{unified.length ? t('noJeepsDir') : t('noJeeps')}</Text>
+          <Text style={styles.msg}>{t('noJeepsYet')}</Text>
         )}
 
-        <View style={styles.btnRow}>
-          <NeoButton
-            style={styles.flexBtn}
-            label={cooldown > 0 && waitStop ? `${waitStop.short} (${cooldown}s)` : t('waitingPing')}
-            color={cooldown > 0 ? '#D4D4D8' : PALETTE.mint}
-            icon={<Ionicons name="hand-left" size={18} color={PALETTE.text} />}
-            onPress={() => cooldown === 0 && setMode('wait')}
-          />
-          <NeoButton
-            style={styles.flexBtn}
-            label={t('rideAlert')}
-            color={PALETTE.yellow}
-            icon={<Ionicons name="notifications" size={18} color={PALETTE.text} />}
-            onPress={() => setMode('pick')}
-          />
-        </View>
+        <NeoButton
+          label={t('rideAlert')}
+          color={PALETTE.yellow}
+          icon={<Ionicons name="notifications" size={18} color={PALETTE.text} />}
+          onPress={() => setMode('pick')}
+        />
+        <Pressable
+          style={styles.historyLink}
+          hitSlop={8}
+          onPress={() => {
+            setHistoryBack('map');
+            setMode('history');
+          }}
+        >
+          <Ionicons name="time-outline" size={16} color={PALETTE.textMuted} />
+          <Text style={styles.historyText}>{t('tripHistory')}</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -382,14 +275,10 @@ const styles = StyleSheet.create({
   etaBox: { alignItems: 'center' },
   etaNum: { fontSize: 30, fontWeight: FONT.black, color: PALETTE.blue, lineHeight: 32 },
   etaLabel: { fontSize: 10, fontWeight: FONT.bold, color: PALETTE.textMuted },
-  gaugeTrack: { height: 20, borderRadius: 999, borderWidth: 1, borderColor: PALETTE.border, backgroundColor: PALETTE.bg, overflow: 'hidden' },
-  gaugeFill: { height: '100%' },
-  statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seatText: { fontSize: 13, fontWeight: FONT.black, color: PALETTE.text },
   crowdRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   crowdText: { fontSize: 12, fontWeight: FONT.semibold, color: PALETTE.textMuted, flex: 1 },
-  btnRow: { flexDirection: 'row', gap: 10 },
-  flexBtn: { flex: 1 },
+  historyLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: -2 },
+  historyText: { fontSize: 13, fontWeight: FONT.bold, color: PALETTE.textMuted },
   // pick screen
   pickScroll: { padding: 20, gap: 12 },
   pickTitle: { fontSize: 26, fontWeight: FONT.black, color: PALETTE.text },
@@ -407,18 +296,6 @@ const styles = StyleSheet.create({
   },
   stopName: { flex: 1, fontSize: 16, fontWeight: FONT.black, color: PALETTE.text },
   stopMeta: { fontSize: 12, fontWeight: FONT.bold, color: PALETTE.textMuted },
-  nearTag: {
-    fontSize: 10,
-    fontWeight: FONT.black,
-    color: PALETTE.text,
-    borderWidth: 1,
-    borderColor: PALETTE.border,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    backgroundColor: PALETTE.cardBg,
-    overflow: 'hidden',
-  },
   discount: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: PALETTE.cardBg },
   discountText: { flex: 1, fontSize: 13, fontWeight: FONT.bold, color: PALETTE.text },
 });

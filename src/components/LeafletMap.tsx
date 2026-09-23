@@ -12,29 +12,22 @@ export interface MapMarker {
   label?: string;
 }
 
-export interface WaitingMarker {
-  id: string;
-  latitude: number;
-  longitude: number;
-}
-
 export interface StopMarker {
   id: string;
   latitude: number;
   longitude: number;
   name: string;
   kind?: 'stop' | 'next' | 'dest';
-  waiting?: number; // riders waiting at this stop (shown as a purple badge)
 }
 
 interface LeafletMapProps {
   center: Coords;
   user: Coords | null;
   markers?: MapMarker[];
-  waiting?: WaitingMarker[];
   stops?: StopMarker[];
   line?: [number, number][]; // route line as [lat, lng] points
-  badgeSide?: 'left' | 'right'; // which side of a stop the waiting badge sits
+  follow?: Coords | null; // when set, the map keeps this point centered (ride mode)
+  followZoom?: number; // zoom to hold while following
   style?: StyleProp<ViewStyle>;
 }
 
@@ -69,7 +62,7 @@ function buildHtml(lat: number, lng: number): string {
   L.tileLayer('${tileUrl}', { maxZoom: 20, ${subdomains} }).addTo(map);
 
   var routeLayer = L.layerGroup().addTo(map);
-  var userMarker = null, jeepLayer = L.layerGroup().addTo(map), waitLayer = L.layerGroup().addTo(map), centeredOnce = false;
+  var userMarker = null, jeepLayer = L.layerGroup().addTo(map), centeredOnce = false;
 
   function jeepSvg(color) {
     return '<svg width="48" height="32" viewBox="0 0 48 32" xmlns="http://www.w3.org/2000/svg">' +
@@ -90,6 +83,13 @@ function buildHtml(lat: number, lng: number): string {
     if (!centeredOnce) { map.setView([la, ln], 16); centeredOnce = true; }
   };
 
+  // Ride mode: keep a point centered as the rider moves. Smooth pan, holds zoom.
+  window.follow = function(la, ln, zoom) {
+    var z = zoom || Math.max(map.getZoom(), 16);
+    map.setView([la, ln], z, { animate: true, duration: 0.7 });
+    centeredOnce = true;
+  };
+
   window.setMarkers = function(arr) {
     jeepLayer.clearLayers();
     arr.forEach(function(m) {
@@ -99,17 +99,7 @@ function buildHtml(lat: number, lng: number): string {
     });
   };
 
-  window.setWaiting = function(arr) {
-    waitLayer.clearLayers();
-    arr.forEach(function(w) {
-      var html = '<div style="width:26px;height:26px;border:2.5px solid #18181B;border-radius:50%;background:#8338EC;display:flex;align-items:center;justify-content:center;font-size:15px;">\\uD83E\\uDDCD</div>';
-      var icon = L.divIcon({ html: html, className: '', iconSize: [26, 26], iconAnchor: [13, 13] });
-      var mk = L.marker([w.latitude, w.longitude], { icon: icon }).addTo(waitLayer);
-      mk.bindPopup('Rider waiting here');
-    });
-  };
-
-  window.setRoute = function(line, arr, badgeSide) {
+  window.setRoute = function(line, arr) {
     routeLayer.clearLayers();
     var pts = line && line.length ? line : arr.map(function(s){ return [s.latitude, s.longitude]; });
     if (pts.length > 1) {
@@ -122,13 +112,6 @@ function buildHtml(lat: number, lng: number): string {
       L.circleMarker([s.latitude, s.longitude], { radius: r, color: '#18181B', weight: 2.5, fillColor: fill, fillOpacity: 1 })
         .bindTooltip(s.name, { direction: 'right', offset: [8, 0], permanent: s.kind === 'dest' || s.kind === 'next' })
         .addTo(routeLayer);
-      if (s.waiting > 0) {
-        var html = '<div style="min-width:24px;height:24px;padding:0 5px;box-sizing:border-box;border:2px solid #fff;border-radius:12px;background:#845EF7;color:#fff;font:600 12px/20px sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.35);">' + s.waiting + '</div>';
-        // badge sits on the right of the stop for one direction, left for the other
-        var ax = badgeSide === 'left' ? 34 : -12;
-        L.marker([s.latitude, s.longitude], { icon: L.divIcon({ html: html, className: '', iconSize: [24, 24], iconAnchor: [ax, 12] }) })
-          .bindPopup(s.waiting + ' waiting at ' + s.name).addTo(routeLayer);
-      }
     });
   };
 
@@ -136,7 +119,7 @@ function buildHtml(lat: number, lng: number): string {
 </script></body></html>`;
 }
 
-export default function LeafletMap({ center, user, markers = [], waiting = [], stops = [], line = [], badgeSide = 'right', style }: LeafletMapProps) {
+export default function LeafletMap({ center, user, markers = [], stops = [], line = [], follow = null, followZoom, style }: LeafletMapProps) {
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const source = useMemo(() => ({ html: buildHtml(center.latitude, center.longitude) }), []);
@@ -147,6 +130,13 @@ export default function LeafletMap({ center, user, markers = [], waiting = [], s
     }
   }, [ready, user]);
 
+  // ride mode: pan the map to keep the rider centered as they move
+  useEffect(() => {
+    if (ready && follow && ref.current) {
+      ref.current.injectJavaScript(`window.follow(${follow.latitude}, ${follow.longitude}, ${followZoom || 0}); true;`);
+    }
+  }, [ready, follow?.latitude, follow?.longitude, followZoom]);
+
   useEffect(() => {
     if (ready && ref.current) {
       ref.current.injectJavaScript(`window.setMarkers(${JSON.stringify(markers)}); true;`);
@@ -155,15 +145,9 @@ export default function LeafletMap({ center, user, markers = [], waiting = [], s
 
   useEffect(() => {
     if (ready && ref.current) {
-      ref.current.injectJavaScript(`window.setWaiting(${JSON.stringify(waiting)}); true;`);
+      ref.current.injectJavaScript(`window.setRoute(${JSON.stringify(line)}, ${JSON.stringify(stops)}); true;`);
     }
-  }, [ready, waiting]);
-
-  useEffect(() => {
-    if (ready && ref.current) {
-      ref.current.injectJavaScript(`window.setRoute(${JSON.stringify(line)}, ${JSON.stringify(stops)}, ${JSON.stringify(badgeSide)}); true;`);
-    }
-  }, [ready, stops, line, badgeSide]);
+  }, [ready, stops, line]);
 
   return (
     <WebView

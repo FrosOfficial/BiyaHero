@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# .env is NOT listed here on purpose: EAS needs it to put your
+# Firebase + MapTiler keys into the APK. Git still ignores it (.gitignore).
