@@ -1,18 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { PALETTE, neoShadow, FONT } from '../theme/theme';
+import { PALETTE, neoShadow, FONT, RADIUS } from '../theme/theme';
 
 interface NeoCardProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  tag?: string; // floating comic sticker tag, top-right
+  tag?: string; // small label chip, top-right
   tagColor?: string;
-  offset?: number;
+  offset?: number; // kept for API compatibility
 }
 
-export default function NeoCard({ children, style, tag, tagColor = PALETTE.yellow, offset = 4 }: NeoCardProps) {
+export default function NeoCard({ children, style, tag, tagColor = PALETTE.mint }: NeoCardProps) {
   return (
-    <View style={[styles.card, neoShadow(offset), style]}>
+    <View style={[styles.card, neoShadow(2), style]}>
       {tag ? (
         <View style={[styles.tag, { backgroundColor: tagColor }]}>
           <Text style={styles.tagText}>{tag}</Text>
@@ -26,27 +26,25 @@ export default function NeoCard({ children, style, tag, tagColor = PALETTE.yello
 const styles = StyleSheet.create({
   card: {
     backgroundColor: PALETTE.cardBg,
-    borderWidth: 2.5,
+    borderWidth: 1,
     borderColor: PALETTE.border,
-    borderRadius: 16,
+    borderRadius: RADIUS.lg,
     padding: 16,
   },
   tag: {
     position: 'absolute',
-    top: -12,
-    right: 12,
-    borderWidth: 2,
-    borderColor: PALETTE.border,
-    borderRadius: 20,
+    top: 14,
+    right: 14,
+    borderRadius: RADIUS.pill,
     paddingHorizontal: 10,
     paddingVertical: 3,
-    transform: [{ rotate: '-2deg' }],
     zIndex: 5,
   },
   tagText: {
-    fontSize: 11,
-    fontWeight: FONT.black,
-    color: PALETTE.border,
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: FONT.bold,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
 });

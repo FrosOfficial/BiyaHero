@@ -18,11 +18,23 @@ export interface WaitingMarker {
   longitude: number;
 }
 
+export interface StopMarker {
+  id: string;
+  latitude: number;
+  longitude: number;
+  name: string;
+  kind?: 'stop' | 'next' | 'dest';
+  waiting?: number; // riders waiting at this stop (shown as a purple badge)
+}
+
 interface LeafletMapProps {
   center: Coords;
   user: Coords | null;
   markers?: MapMarker[];
   waiting?: WaitingMarker[];
+  stops?: StopMarker[];
+  line?: [number, number][]; // route line as [lat, lng] points
+  badgeSide?: 'left' | 'right'; // which side of a stop the waiting badge sits
   style?: StyleProp<ViewStyle>;
 }
 
@@ -56,6 +68,7 @@ function buildHtml(lat: number, lng: number): string {
 
   L.tileLayer('${tileUrl}', { maxZoom: 20, ${subdomains} }).addTo(map);
 
+  var routeLayer = L.layerGroup().addTo(map);
   var userMarker = null, jeepLayer = L.layerGroup().addTo(map), waitLayer = L.layerGroup().addTo(map), centeredOnce = false;
 
   function jeepSvg(color) {
@@ -96,11 +109,34 @@ function buildHtml(lat: number, lng: number): string {
     });
   };
 
+  window.setRoute = function(line, arr, badgeSide) {
+    routeLayer.clearLayers();
+    var pts = line && line.length ? line : arr.map(function(s){ return [s.latitude, s.longitude]; });
+    if (pts.length > 1) {
+      L.polyline(pts, { color: '#18181B', weight: 9, opacity: 0.9 }).addTo(routeLayer);
+      L.polyline(pts, { color: '#3A86FF', weight: 5, opacity: 1 }).addTo(routeLayer);
+    }
+    arr.forEach(function(s) {
+      var fill = s.kind === 'dest' ? '#FF4757' : s.kind === 'next' ? '#FFC700' : '#FFFFFF';
+      var r = s.kind === 'dest' ? 9 : 6;
+      L.circleMarker([s.latitude, s.longitude], { radius: r, color: '#18181B', weight: 2.5, fillColor: fill, fillOpacity: 1 })
+        .bindTooltip(s.name, { direction: 'right', offset: [8, 0], permanent: s.kind === 'dest' || s.kind === 'next' })
+        .addTo(routeLayer);
+      if (s.waiting > 0) {
+        var html = '<div style="min-width:24px;height:24px;padding:0 5px;box-sizing:border-box;border:2px solid #fff;border-radius:12px;background:#845EF7;color:#fff;font:600 12px/20px sans-serif;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.35);">' + s.waiting + '</div>';
+        // badge sits on the right of the stop for one direction, left for the other
+        var ax = badgeSide === 'left' ? 34 : -12;
+        L.marker([s.latitude, s.longitude], { icon: L.divIcon({ html: html, className: '', iconSize: [24, 24], iconAnchor: [ax, 12] }) })
+          .bindPopup(s.waiting + ' waiting at ' + s.name).addTo(routeLayer);
+      }
+    });
+  };
+
   if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage('ready'); }
 </script></body></html>`;
 }
 
-export default function LeafletMap({ center, user, markers = [], waiting = [], style }: LeafletMapProps) {
+export default function LeafletMap({ center, user, markers = [], waiting = [], stops = [], line = [], badgeSide = 'right', style }: LeafletMapProps) {
   const ref = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const source = useMemo(() => ({ html: buildHtml(center.latitude, center.longitude) }), []);
@@ -122,6 +158,12 @@ export default function LeafletMap({ center, user, markers = [], waiting = [], s
       ref.current.injectJavaScript(`window.setWaiting(${JSON.stringify(waiting)}); true;`);
     }
   }, [ready, waiting]);
+
+  useEffect(() => {
+    if (ready && ref.current) {
+      ref.current.injectJavaScript(`window.setRoute(${JSON.stringify(line)}, ${JSON.stringify(stops)}, ${JSON.stringify(badgeSide)}); true;`);
+    }
+  }, [ready, stops, line, badgeSide]);
 
   return (
     <WebView

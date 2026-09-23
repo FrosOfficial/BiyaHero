@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
-import { Text, StyleSheet, Pressable, Animated, ViewStyle, StyleProp, View } from 'react-native';
-import { PALETTE, FONT } from '../theme/theme';
+import React from 'react';
+import { Text, StyleSheet, Pressable, ViewStyle, StyleProp, View } from 'react-native';
+import { PALETTE, FONT, RADIUS } from '../theme/theme';
 
 interface NeoButtonProps {
   label: string;
@@ -8,74 +8,64 @@ interface NeoButtonProps {
   color?: string; // fill color
   textColor?: string;
   style?: StyleProp<ViewStyle>;
-  offset?: number;
+  offset?: number; // kept for API compatibility; ignored in the soft style
   icon?: React.ReactNode;
   small?: boolean;
 }
 
+// A clean filled button: soft rounded, medium-weight label, gentle press fade.
 export default function NeoButton({
   label,
   onPress,
-  color = PALETTE.yellow,
-  textColor = PALETTE.border,
+  color = PALETTE.text,
+  textColor,
   style,
-  offset = 3,
   icon,
   small = false,
 }: NeoButtonProps) {
-  const translate = useRef(new Animated.Value(0)).current;
-
-  const shadowStyle: ViewStyle = {
-    shadowColor: PALETTE.border,
-    shadowOffset: { width: offset, height: offset },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: offset,
-  };
-
+  // pick readable text: dark on light fills, white on strong fills
+  const fg = textColor ?? (isLight(color) ? PALETTE.text : '#FFFFFF');
+  const bordered = isLight(color);
   return (
-    <Animated.View
-      style={[
-        { transform: [{ translateX: translate }, { translateY: translate }] },
-        shadowStyle,
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }: { pressed: boolean }) => [
+        styles.btn,
+        {
+          backgroundColor: color,
+          paddingVertical: small ? 9 : 13,
+          borderWidth: bordered ? 1 : 0,
+          borderColor: PALETTE.border,
+          opacity: pressed ? 0.85 : 1,
+        },
         style,
       ]}
     >
-      <Pressable
-        onPress={onPress}
-        onPressIn={() => Animated.timing(translate, { toValue: 2, duration: 40, useNativeDriver: true }).start()}
-        onPressOut={() => Animated.timing(translate, { toValue: 0, duration: 40, useNativeDriver: true }).start()}
-        style={[
-          styles.btn,
-          { backgroundColor: color, paddingVertical: small ? 8 : 14 },
-        ]}
-      >
-        <View style={styles.row}>
-          {icon}
-          <Text style={[styles.text, { color: textColor, fontSize: small ? 13 : 15 }]}>{label}</Text>
-        </View>
-      </Pressable>
-    </Animated.View>
+      <View style={styles.row}>
+        {icon}
+        <Text style={[styles.text, { color: fg, fontSize: small ? 13 : 15 }]}>{label}</Text>
+      </View>
+    </Pressable>
   );
+}
+
+// crude luminance check so buttons on white/cream fills keep dark text
+function isLight(hex: string): boolean {
+  const m = hex.replace('#', '');
+  if (m.length < 6) return true;
+  const r = parseInt(m.slice(0, 2), 16);
+  const g = parseInt(m.slice(2, 4), 16);
+  const b = parseInt(m.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.7;
 }
 
 const styles = StyleSheet.create({
   btn: {
-    borderWidth: 2.5,
-    borderColor: PALETTE.border,
-    borderRadius: 12,
+    borderRadius: RADIUS.md,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  text: {
-    fontWeight: FONT.black,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  text: { fontWeight: FONT.bold, letterSpacing: 0.2 },
 });

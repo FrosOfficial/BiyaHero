@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Coords } from '../hooks/useLocation';
 import { isConfigured } from '../firebase';
 import { Lang, translate } from '../i18n';
+import { Direction } from '../data/route';
+import { distanceMeters as routeDistance } from '../logic/routeMath';
 
 export type JeepStatus = 'driving' | 'terminal' | 'break';
 
@@ -28,6 +30,16 @@ interface AppState {
   setMaxCapacity: (v: number) => void;
   setDriverStatus: (s: JeepStatus) => void;
   adjustCapacity: (delta: number) => void;
+  setCapacityTo: (v: number) => void;
+  driverDirection: Direction;
+  setDriverDirection: (d: Direction) => void;
+  // commuter preferences
+  riderDirection: Direction;
+  setRiderDirection: (d: Direction) => void;
+  discounted: boolean; // student / senior / PWD fare
+  setDiscounted: (v: boolean) => void;
+  voiceMuted: boolean; // mute the spoken "para po" alert
+  setVoiceMuted: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -39,10 +51,7 @@ function randomId() {
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export function distanceMeters(a: Coords, b: Coords): number {
-  const R = 6371000;
-  const x = ((b.longitude - a.longitude) * Math.PI) / 180 * Math.cos(((a.latitude + b.latitude) / 2) * Math.PI / 180);
-  const y = ((b.latitude - a.latitude) * Math.PI) / 180;
-  return Math.sqrt(x * x + y * y) * R;
+  return routeDistance(a, b);
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -54,6 +63,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [maxCapacity, setMaxCapacityState] = useState(MIN_MAX_CAP);
   const [status, setStatus] = useState<JeepStatus>('driving');
   const [lang, setLangState] = useState<Lang>('en');
+  const [driverDirection, setDriverDirection] = useState<Direction>('toPRC');
+  const [riderDirection, setRiderDirectionState] = useState<Direction>('toPRC');
+  const [discounted, setDiscountedState] = useState(false);
+  const [voiceMuted, setVoiceMutedState] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,6 +85,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (n) setNameState(n);
         if (mc) setMaxCapacityState(clamp(parseInt(mc, 10) || MIN_MAX_CAP, MIN_MAX_CAP, MAX_MAX_CAP));
         if (lg === 'fil' || lg === 'en') setLangState(lg);
+        const rd = await AsyncStorage.getItem('riderDirection');
+        if (rd === 'toPRC' || rd === 'toMantrade') setRiderDirectionState(rd);
+        const dc = await AsyncStorage.getItem('discounted');
+        if (dc === 'yes') setDiscountedState(true);
+        const vm = await AsyncStorage.getItem('voiceMuted');
+        if (vm === 'yes') setVoiceMutedState(true);
       } catch {
         setDriverId(randomId());
       }
@@ -104,6 +123,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (delta: number) => setCapacity((c) => clamp(c + delta, 0, maxCapacity)),
     [maxCapacity]
   );
+  const setCapacityTo = useCallback(
+    (v: number) => setCapacity(clamp(Math.round(v), 0, maxCapacity)),
+    [maxCapacity]
+  );
+  const setRiderDirection = useCallback((d: Direction) => {
+    setRiderDirectionState(d);
+    AsyncStorage.setItem('riderDirection', d).catch(() => {});
+  }, []);
+  const setDiscounted = useCallback((v: boolean) => {
+    setDiscountedState(v);
+    AsyncStorage.setItem('discounted', v ? 'yes' : 'no').catch(() => {});
+  }, []);
+  const setVoiceMuted = useCallback((v: boolean) => {
+    setVoiceMutedState(v);
+    AsyncStorage.setItem('voiceMuted', v ? 'yes' : 'no').catch(() => {});
+  }, []);
 
   return (
     <AppContext.Provider
@@ -125,6 +160,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setMaxCapacity,
         setDriverStatus,
         adjustCapacity,
+        setCapacityTo,
+        driverDirection,
+        setDriverDirection,
+        riderDirection,
+        setRiderDirection,
+        discounted,
+        setDiscounted,
+        voiceMuted,
+        setVoiceMuted,
       }}
     >
       {children}

@@ -13,6 +13,7 @@ const FALLBACK: Coords = { latitude: 14.5547, longitude: 121.0244 };
 
 export function useLocation() {
   const [coords, setCoords] = useState<Coords | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null); // meters; smaller = better
   const [perm, setPerm] = useState<PermState>('checking');
   const [error, setError] = useState<string | null>(null);
   const sub = useRef<Location.LocationSubscription | null>(null);
@@ -36,6 +37,7 @@ export function useLocation() {
           const last = await Location.getLastKnownPositionAsync();
           if (mounted && last) {
             setCoords({ latitude: last.coords.latitude, longitude: last.coords.longitude });
+            setAccuracy(last.coords.accuracy ?? null);
           }
         } catch {
           /* ignore */
@@ -46,12 +48,14 @@ export function useLocation() {
           if (mounted) setCoords((c) => c ?? FALLBACK);
         }, 8000);
 
-        // 3) live updates. "High" gets a first fix much faster than "Highest" on old GPS
+        // 3) live updates. BestForNavigation is the most accurate mode - right for a
+        //    moving jeep. Updates every ~2 m / 2 s so the stop alert fires on time.
         sub.current = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, distanceInterval: 5, timeInterval: 3000 },
+          { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 2, timeInterval: 2000 },
           (loc) => {
             if (!mounted) return;
             setCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+            setAccuracy(loc.coords.accuracy ?? null);
           }
         );
       } catch (e: any) {
@@ -66,5 +70,5 @@ export function useLocation() {
     };
   }, []);
 
-  return { coords, perm, error };
+  return { coords, accuracy, perm, error };
 }

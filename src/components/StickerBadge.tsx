@@ -13,7 +13,7 @@ interface StickerBadgeProps {
 export default function StickerBadge({
   label,
   color = PALETTE.yellow,
-  textColor = PALETTE.border,
+  textColor = PALETTE.text,
   rotate = '-2deg',
   style,
 }: StickerBadgeProps) {
@@ -27,7 +27,7 @@ export default function StickerBadge({
 const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: PALETTE.border,
     borderRadius: 20,
     paddingHorizontal: 12,

@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   bubble: {
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: PALETTE.border,
     borderRadius: 10,
     paddingHorizontal: 12,

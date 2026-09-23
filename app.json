@@ -13,7 +13,12 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "BiyaHero uses your location to show jeepneys near you on the map."
+        "NSLocationWhenInUseUsageDescription": "BiyaHero uses your location to show jeepneys near you on the map.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "BiyaHero watches for your stop while you ride, even with the screen off."
       }
     },
     "android": {
@@ -23,8 +28,13 @@
         "backgroundColor": "#FAF6ED"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ]
@@ -36,7 +46,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "BiyaHero uses your location to show jeepneys near you on the map."
+          "locationAlwaysAndWhenInUsePermission": "BiyaHero watches for your stop while you ride, even with the screen off.",
+          "locationWhenInUsePermission": "BiyaHero uses your location to show jeepneys near you on the map.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
@@ -47,7 +60,8 @@
           "imageWidth": 220
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {

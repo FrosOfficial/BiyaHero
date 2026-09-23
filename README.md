@@ -12,7 +12,11 @@ Built for ITS142 (Mapúa) as a Shark Tank pitch prototype. Pilot corridor: Chino
 - **Live map** (OpenStreetMap / MapTiler) centered on your real GPS location.
 - **Seat Radar** — every jeep is colored by how full it is: 🟢 chill · 🟡 squeezed · 🔴 sabit.
 - **Real-time tracking** — drivers broadcast live GPS via Firebase; commuters see them move instantly.
-- **Waiting pings** — commuters drop a "waiting here" ping; drivers see demand nearby.
+- **Waiting at a stop** — commuters pick the stop they're waiting at (not raw GPS); drivers see how many riders wait at each stop ahead.
+- **Direction-aware** — pick *To PRC* or *To Mantrade*. Only jeeps heading your way that haven't passed you yet count, and ETA is measured along the route.
+- **Ride & alert me** — pick your stop; BiyaHero vibrates and speaks before your stop ("Para po!") and wraps up the trip when you arrive.
+- **Trip savings** — after each ride: fare paid vs Move It, Angkas and JoyRide estimates (savings range), CO₂ saved, and this month's running total (saved on the phone only).
+- **Zero-tap seats for drivers** — leaving a terminal marks the jeep Full (Half-full after 9:30 PM), Buendia/Waltermart free up seats, passing a waiting rider adds one, riders tapping "I got off" remove one. Manual +/- only when parked.
 - **Neo-Brutalist Manila Pop** design (cream canvas, bold black outlines, jeepney gold).
 
 ## Tech stack
@@ -56,6 +60,11 @@ EAS builds an installable APK in the cloud and gives you a download link to shar
 
 ```
 src/
+├── data/routeMap.json      route line + stops (GeoJSON, draw it at geojson.io)
+├── data/route.ts           reads routeMap.json: stops in order, line per direction
+├── data/fares.ts           jeep fare (₱13 / ₱11), motorcycle-taxi estimates, CO₂ and speed settings
+├── logic/routeMath.ts      route progress, ETA, stop alert, fares (pure functions)
+├── services/trips.ts       monthly savings stored on the phone
 ├── theme/theme.ts          Neo-Brutalist palette + hard-shadow helper
 ├── components/             NeoCard, NeoButton, LeafletMap, StatusMeterPill, ...
 ├── context/AppContext.tsx  role state, driver identity, GPS base
@@ -63,13 +72,15 @@ src/
 ├── services/live.ts        Firebase broadcast + subscribe
 ├── firebaseConfig.ts       reads keys from env
 ├── mapConfig.ts            map tile source + key
-└── screens/                RoleSelect, Commuter, Driver
+└── screens/                RoleSelect, Commuter, Ride, TripSummary, Driver
 ```
 
 ## Notes
 
 - Firebase runs in **test mode** for the prototype — lock down the security rules before real-world use.
 - Jeep positions are real when a driver runs Driver mode; there is no public jeepney GPS feed.
+- The route line and stops live in `src/data/routeMap.json` (GeoJSON). Redraw it at [geojson.io](https://geojson.io): a LineString with `"direction": "toPRC"` drawn from Mantrade to PRC along the real road, optionally a second one with `"direction": "toMantrade"` for one-way streets, and a Point per stop with a `"name"` (plus `"terminal"` / `"turnover"` set to true where they apply). Paste the whole JSON into the file. Stops are ordered automatically.
+- The stop alert works while BiyaHero is open on screen (the screen is kept awake during a ride).
 
 ---
 

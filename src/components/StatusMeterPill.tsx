@@ -11,9 +11,9 @@ interface StatusMeterPillProps {
 }
 
 const CONFIG: Record<CapacityLevel, { bg: string; fg: string; text: string }> = {
-  chill: { bg: PALETTE.mint, fg: PALETTE.border, text: 'CHILL SEATS' },
-  squeezed: { bg: PALETTE.yellow, fg: PALETTE.border, text: 'SQUEEZED' },
-  sabit: { bg: PALETTE.coral, fg: '#FFFFFF', text: 'SABIT / FULL' },
+  chill: { bg: '#E6F7F1', fg: PALETTE.mint, text: 'CHILL SEATS' },
+  squeezed: { bg: '#FFF4DB', fg: '#B7791F', text: 'SQUEEZED' },
+  sabit: { bg: '#FFE3E4', fg: PALETTE.coral, text: 'SABIT / FULL' },
 };
 
 export function levelFromRatio(ratio: number): CapacityLevel {
@@ -34,15 +34,13 @@ export default function StatusMeterPill({ level, label, style }: StatusMeterPill
 const styles = StyleSheet.create({
   pill: {
     alignSelf: 'flex-start',
-    borderWidth: 2,
-    borderColor: PALETTE.border,
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
   text: {
     fontSize: 12,
-    fontWeight: FONT.black,
-    letterSpacing: 0.5,
+    fontWeight: FONT.bold,
+    letterSpacing: 0.3,
   },
 });

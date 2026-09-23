@@ -23,12 +23,12 @@ export default function LanguageToggle({ style }: { style?: StyleProp<ViewStyle>
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: PALETTE.border,
     borderRadius: 999,
     overflow: 'hidden',
     alignSelf: 'flex-start',
   },
   opt: { paddingHorizontal: 14, paddingVertical: 6 },
-  txt: { fontSize: 13, fontWeight: FONT.black, color: PALETTE.border },
+  txt: { fontSize: 13, fontWeight: FONT.black, color: PALETTE.text },
 });

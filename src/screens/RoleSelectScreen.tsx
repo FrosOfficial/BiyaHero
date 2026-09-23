@@ -24,21 +24,21 @@ export default function RoleSelectScreen({ onSelect }: { onSelect: (r: Role) => 
         <Text style={styles.tag}>{t('tagline')}</Text>
 
         <Pressable style={[styles.role, neoShadow(6), { backgroundColor: PALETTE.yellow }]} onPress={() => onSelect('commuter')}>
-          <Ionicons name="walk" size={44} color={PALETTE.border} />
+          <Ionicons name="walk" size={44} color={PALETTE.text} />
           <View style={styles.roleText}>
             <Text style={styles.roleTitle}>{t('imCommuter')}</Text>
             <Text style={styles.roleSub}>{t('commuterSub')}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={28} color={PALETTE.border} />
+          <Ionicons name="chevron-forward" size={28} color={PALETTE.text} />
         </Pressable>
 
         <Pressable style={[styles.role, neoShadow(6), { backgroundColor: PALETTE.mint }]} onPress={() => onSelect('driver')}>
-          <Ionicons name="bus" size={44} color={PALETTE.border} />
+          <Ionicons name="bus" size={44} color={PALETTE.text} />
           <View style={styles.roleText}>
             <Text style={styles.roleTitle}>{t('imDriver')}</Text>
             <Text style={styles.roleSub}>{t('driverSub')}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={28} color={PALETTE.border} />
+          <Ionicons name="chevron-forward" size={28} color={PALETTE.text} />
         </Pressable>
 
         <View style={styles.spacer} />
@@ -59,14 +59,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    borderWidth: 3,
+    borderWidth: 1,
     borderColor: PALETTE.border,
     borderRadius: 18,
     padding: 18,
   },
   roleText: { flex: 1 },
-  roleTitle: { fontSize: 20, fontWeight: FONT.black, color: PALETTE.border },
-  roleSub: { fontSize: 13, fontWeight: FONT.semibold, color: PALETTE.border, marginTop: 2 },
+  roleTitle: { fontSize: 20, fontWeight: FONT.black, color: PALETTE.text },
+  roleSub: { fontSize: 13, fontWeight: FONT.semibold, color: PALETTE.text, marginTop: 2 },
   spacer: { height: 12 },
   note: { fontSize: 12, fontWeight: FONT.semibold, color: PALETTE.textMuted, textAlign: 'center', marginTop: 6 },
 });

@@ -10,6 +10,7 @@ import TermsScreen from './src/screens/TermsScreen';
 import RoleSelectScreen, { Role } from './src/screens/RoleSelectScreen';
 import CommuterScreen from './src/screens/CommuterScreen';
 import DriverScreen from './src/screens/DriverScreen';
+import './src/services/rideAlert'; // registers the background stop-alert task
 
 function Root() {
   const { t } = useApp();
@@ -36,7 +37,7 @@ function Root() {
       <SafeAreaView edges={['top']} style={styles.barWrap}>
         <View style={styles.bar}>
           <Pressable style={styles.switchBtn} onPress={() => setRole(null)}>
-            <Ionicons name="swap-horizontal" size={16} color={PALETTE.border} />
+            <Ionicons name="swap-horizontal" size={16} color={PALETTE.text} />
             <Text style={styles.switchText}>{t('switch')}</Text>
           </Pressable>
           <Text style={styles.barTitle}>{role === 'commuter' ? t('commuter') : t('driver')}</Text>
@@ -69,7 +70,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderBottomWidth: 2.5,
+    borderBottomWidth: 1,
     borderBottomColor: PALETTE.border,
     backgroundColor: PALETTE.cardBg,
   },
@@ -77,13 +78,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: PALETTE.border,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
     backgroundColor: PALETTE.yellow,
   },
-  switchText: { fontSize: 12, fontWeight: FONT.black, color: PALETTE.border },
+  switchText: { fontSize: 12, fontWeight: FONT.black, color: PALETTE.text },
   barTitle: { fontSize: 18, fontWeight: FONT.black, color: PALETTE.text },
 });
