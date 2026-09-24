@@ -225,8 +225,8 @@
         "type": "LineString",
         "coordinates": [
           [
-            121.015016,
-            14.570669
+            121.015024,
+            14.570665
           ],
           [
             121.01309,
@@ -458,6 +458,66 @@
     {
       "type": "Feature",
       "properties": {
+        "name": "Fernando Detour",
+        "stroke": "#0066ff"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.013787,
+            14.553927
+          ],
+          [
+            121.013201,
+            14.553908
+          ],
+          [
+            121.013209,
+            14.553458
+          ],
+          [
+            121.013774,
+            14.553409
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Santillan Detour",
+        "stroke": "#00ee13"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.013209,
+            14.553461
+          ],
+          [
+            121.013013,
+            14.551576
+          ],
+          [
+            121.01239,
+            14.551578
+          ],
+          [
+            121.011492,
+            14.551422
+          ],
+          [
+            121.011531,
+            14.551317
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
         "name": "Mantrade Terminal",
         "short": "Mantrade",
         "terminal": true
@@ -480,8 +540,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          121.015021,
-          14.570669
+          121.015024,
+          14.570665
         ]
       }
     },
@@ -573,6 +633,20 @@
     {
       "type": "Feature",
       "properties": {
+        "name": "Kerera",
+        "short": "Kerera"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.013591,
+          14.555085
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
         "name": "Makati Square (Arnaiz)",
         "short": "Makati Sq."
       },
@@ -581,20 +655,6 @@
         "coordinates": [
           121.013769,
           14.553326
-        ]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "name": "Kerera",
-        "short": "Kerera"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.013535,
-          14.555389
         ]
       }
     },
@@ -655,8 +715,8 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
-          121.013427,
-          14.551475
+          121.013015,
+          14.551614
         ]
       }
     }
