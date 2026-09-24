@@ -49,58 +49,83 @@ export default function RoutePicker({ value, onChange, style }: Props) {
           </View>
 
           <ScrollView contentContainerStyle={styles.list}>
-            {REGIONS.map((region) => (
-              <View key={region.id} style={styles.region}>
-                <View style={styles.regionHead}>
-                  <Ionicons name="location" size={15} color={PALETTE.blue} />
-                  <Text style={styles.regionName}>{region.name}</Text>
-                </View>
+            {REGIONS.map((region) => {
+              const activeCities = region.cities.filter((c) => c.routes && c.routes.length > 0);
+              const soonCities = region.cities.filter((c) => !c.routes || c.routes.length === 0);
 
-                {region.cities.map((city) => (
-                  <View key={city.id} style={styles.cityBlock}>
-                    <View style={styles.cityHead}>
-                      <Ionicons name="chevron-forward" size={13} color={PALETTE.blue} />
-                      <Text style={styles.cityName}>{city.name}</Text>
-                    </View>
-
-                    <View style={styles.group}>
-                      {city.routes.map((r, i) => {
-                        const live = !!r.direction;
-                        const on = r.direction === value;
-                        return (
-                          <Pressable
-                            key={r.id}
-                            disabled={!live}
-                            onPress={() => {
-                              if (r.direction) onChange(r.direction);
-                              setOpen(false);
-                            }}
-                            style={[styles.row, i > 0 && styles.rowLine, on && styles.rowOn]}
-                          >
-                            <Ionicons
-                              name="arrow-forward-circle"
-                              size={20}
-                              color={on ? PALETTE.text : live ? PALETTE.textMuted : '#C9CCD3'}
-                            />
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.rowName, !live && styles.soonText]}>{label(r)}</Text>
-                              {live ? <Text style={styles.rowDetail}>{detail(r.direction!)}</Text> : null}
-                            </View>
-                            {on ? (
-                              <Ionicons name="checkmark-circle" size={22} color={PALETTE.mint} />
-                            ) : !live ? (
-                              <View style={styles.soonPill}>
-                                <Text style={styles.soonPillText}>{t('soon')}</Text>
-                              </View>
-                            ) : null}
-                          </Pressable>
-                        );
-                      })}
-                    </View>
+              return (
+                <View key={region.id} style={styles.region}>
+                  <View style={styles.regionHead}>
+                    <Ionicons name="location" size={15} color={PALETTE.blue} />
+                    <Text style={styles.regionName}>{region.name}</Text>
                   </View>
-                ))}
-              </View>
-            ))}
+
+                  {activeCities.map((city) => (
+                    <View key={city.id} style={styles.cityBlock}>
+                      <View style={styles.cityHead}>
+                        <Ionicons name="chevron-forward" size={13} color={PALETTE.blue} />
+                        <Text style={styles.cityName}>{city.name}</Text>
+                      </View>
+
+                      <View style={styles.group}>
+                        {city.routes.map((r, i) => {
+                          const live = !!r.direction;
+                          const on = r.direction === value;
+                          return (
+                            <Pressable
+                              key={r.id}
+                              disabled={!live}
+                              onPress={() => {
+                                if (r.direction) onChange(r.direction);
+                                setOpen(false);
+                              }}
+                              style={[styles.row, i > 0 && styles.rowLine, on && styles.rowOn]}
+                            >
+                              <Ionicons
+                                name="arrow-forward-circle"
+                                size={20}
+                                color={on ? PALETTE.text : live ? PALETTE.textMuted : '#C9CCD3'}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.rowName, !live && styles.soonText]}>{label(r)}</Text>
+                                {live ? <Text style={styles.rowDetail}>{detail(r.direction!)}</Text> : null}
+                              </View>
+                              {on ? (
+                                <Ionicons name="checkmark-circle" size={22} color={PALETTE.mint} />
+                              ) : !live ? (
+                                <View style={styles.soonPill}>
+                                  <Text style={styles.soonPillText}>{t('soon')}</Text>
+                                </View>
+                              ) : null}
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
+
+                  {soonCities.length > 0 && (
+                    <View style={styles.cityBlock}>
+                      <View style={styles.cityHead}>
+                        <Ionicons name="time-outline" size={13} color={PALETTE.textMuted} />
+                        <Text style={styles.cityName}>{t('moreCities')}</Text>
+                      </View>
+                      <View style={styles.group}>
+                        {soonCities.map((c, i) => (
+                          <View key={c.id} style={[styles.row, i > 0 && styles.rowLine]}>
+                            <Ionicons name="location-outline" size={18} color="#C9CCD3" />
+                            <Text style={[styles.rowName, styles.soonText, { flex: 1 }]}>{c.name}</Text>
+                            <View style={styles.soonPill}>
+                              <Text style={styles.soonPillText}>{t('soon')}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
             <View style={styles.more}>
               <Ionicons name="map-outline" size={16} color={PALETTE.textMuted} />
               <Text style={styles.moreText}>{t('moreLocations')}</Text>
@@ -125,8 +150,8 @@ const styles = StyleSheet.create({
     backgroundColor: PALETTE.cardBg,
   },
   chipIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: PALETTE.yellow, alignItems: 'center', justifyContent: 'center' },
-  chipCity: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
-  chipRoute: { fontSize: 15, fontWeight: FONT.black, color: PALETTE.text, textTransform: 'uppercase' },
+  chipCity: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted },
+  chipRoute: { fontSize: 15, fontWeight: FONT.black, color: PALETTE.text },
   change: { fontSize: 12, fontWeight: FONT.bold, color: PALETTE.blue },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' },
   sheet: {
@@ -138,19 +163,19 @@ const styles = StyleSheet.create({
   },
   grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#D4D4D8', marginTop: 8 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 6 },
-  sheetTitle: { fontSize: 18, fontWeight: FONT.black, color: PALETTE.text, letterSpacing: 0.5, textTransform: 'uppercase' },
+  sheetTitle: { fontSize: 18, fontWeight: FONT.black, color: PALETTE.text },
   list: { paddingHorizontal: 16, paddingBottom: 8, gap: 14 },
   region: { gap: 10 },
   regionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 },
-  regionName: { fontSize: 13, fontWeight: FONT.black, color: PALETTE.text, letterSpacing: 0.8, textTransform: 'uppercase' },
+  regionName: { fontSize: 13, fontWeight: FONT.black, color: PALETTE.text },
   cityBlock: { gap: 6 },
   cityHead: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 14 },
-  cityName: { fontSize: 12, fontWeight: FONT.black, color: PALETTE.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
+  cityName: { fontSize: 12, fontWeight: FONT.bold, color: PALETTE.textMuted },
   group: { backgroundColor: PALETTE.cardBg, borderRadius: 14, borderWidth: 1, borderColor: PALETTE.border, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
   rowLine: { borderTopWidth: 1, borderTopColor: PALETTE.border },
   rowOn: { backgroundColor: '#FFF4DB' },
-  rowName: { fontSize: 15, fontWeight: FONT.bold, color: PALETTE.text, textTransform: 'uppercase' },
+  rowName: { fontSize: 15, fontWeight: FONT.bold, color: PALETTE.text },
   rowDetail: { fontSize: 11.5, fontWeight: FONT.semibold, color: PALETTE.textMuted, marginTop: 1 },
   soonText: { color: '#A6AAB3' },
   soonPill: { backgroundColor: PALETTE.card2, borderWidth: 1, borderColor: PALETTE.border, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
