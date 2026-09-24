@@ -1,50 +1,72 @@
-// The route menu: cities, and the routes you can pick in each.
-//
-// A route with a `direction` works today. A route without one shows as
-// "Soon" and can't be picked yet. To switch one on later: draw its line and
-// stops (like Mantrade–PRC), add it to the app's route data, then give it a
-// `direction` here.
+// Route hierarchy by region, city, and available routes.
 import { Direction } from './route';
 
 export interface AreaRoute {
   id: string;
-  name: string; // shown in the menu, e.g. "To PRC"
-  nameKey?: string; // translation key, used instead of `name` when set
-  direction?: Direction; // set = available now; missing = coming soon
+  name: string;
+  nameKey?: string;
+  direction?: Direction;
 }
 
-export interface Area {
+export interface City {
   id: string;
-  name: string; // city name, e.g. "Makati"
+  name: string;
   routes: AreaRoute[];
 }
 
-export const AREAS: Area[] = [
+export interface Region {
+  id: string;
+  name: string;
+  cities: City[];
+}
+
+export const REGIONS: Region[] = [
   {
-    id: 'makati',
-    name: 'Makati',
-    routes: [
-      { id: 'makati-toPRC', name: 'To PRC', nameKey: 'toPRC', direction: 'toPRC' },
-      { id: 'makati-toMantrade', name: 'To Mantrade', nameKey: 'toMantrade', direction: 'toMantrade' },
-      { id: 'makati-toLRT', name: 'To LRT' },
-    ],
-  },
-  {
-    id: 'muntinlupa',
-    name: 'Muntinlupa',
-    routes: [
-      { id: 'muntinlupa-sanpedro', name: 'San Pedro' },
-      { id: 'muntinlupa-alabang', name: 'Alabang' },
-      { id: 'muntinlupa-binan', name: 'Biñan' },
+    id: 'metro-manila',
+    name: 'Metro Manila',
+    cities: [
+      {
+        id: 'makati',
+        name: 'Makati',
+        routes: [
+          { id: 'makati-toPRC', name: 'To PRC', nameKey: 'toPRC', direction: 'toPRC' },
+          { id: 'makati-toMantrade', name: 'To Mantrade', nameKey: 'toMantrade', direction: 'toMantrade' },
+          { id: 'makati-toLRT', name: 'To LRT', nameKey: 'toLRT' },
+        ],
+      },
     ],
   },
 ];
 
-/** The city + route entry for a working direction. */
-export function areaFor(dir: Direction): { area: Area; route: AreaRoute } {
-  for (const area of AREAS) {
-    const route = area.routes.find((r) => r.direction === dir);
-    if (route) return { area, route };
+export interface AreaSelection {
+  region: Region;
+  city: City;
+  route: AreaRoute;
+  area: { id: string; name: string };
+}
+
+// Find region, city, and route for an active direction.
+export function areaFor(dir: Direction): AreaSelection {
+  for (const region of REGIONS) {
+    for (const city of region.cities) {
+      const route = city.routes.find((r) => r.direction === dir);
+      if (route) {
+        return {
+          region,
+          city,
+          route,
+          area: { id: city.id, name: `${region.name} › ${city.name}` },
+        };
+      }
+    }
   }
-  return { area: AREAS[0], route: AREAS[0].routes[0] };
+  const region = REGIONS[0];
+  const city = region.cities[0];
+  const route = city.routes[0];
+  return {
+    region,
+    city,
+    route,
+    area: { id: city.id, name: `${region.name} › ${city.name}` },
+  };
 }

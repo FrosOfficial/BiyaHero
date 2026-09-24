@@ -2,7 +2,7 @@
 
 Real-time jeepney tracking with a **Comfort & Seat Radar**. Commuters see nearby jeeps, live ETAs, and how full each one is *before* it arrives. Drivers broadcast their live location with one tap. No sign-up, no login, just pick a role and go.
 
-Built for ITS142 (Mapúa) as a Shark Tank pitch prototype. Pilot corridor: Chino Roces Ave, Makati (Mantrade → PRC).
+Built for ITS142 (Mapúa) as a Shark Tank pitch prototype. Pilot corridor: Chino Roces Ave, Makati, Metro Manila (Mantrade → PRC).
 
 ---
 
