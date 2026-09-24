@@ -59,7 +59,15 @@ function buildHtml(lat: number, lng: number): string {
     maxBoundsViscosity: 1.0
   }).setView([${lat}, ${lng}], 15);
 
-  L.tileLayer('${tileUrl}', { maxZoom: 20, ${subdomains} }).addTo(map);
+  // keepBuffer loads extra tiles around the view so swiping doesn't show blank squares
+  L.tileLayer('${tileUrl}', { maxZoom: 20, keepBuffer: 6, updateWhenIdle: false, updateWhenZooming: false, ${subdomains} }).addTo(map);
+
+  // when you drag or zoom by hand, auto-follow pauses for a bit so the map doesn't fight you
+  var pausedUntil = 0;
+  function pauseFollow() { pausedUntil = Date.now() + 12000; }
+  map.on('dragstart', pauseFollow); // one-finger swipe (only fires for your finger)
+  map.getContainer().addEventListener('touchstart', function(e) { if (e.touches && e.touches.length > 1) pauseFollow(); }, { passive: true }); // pinch zoom
+  var zc = document.querySelector('.leaflet-control-zoom'); if (zc) zc.addEventListener('click', pauseFollow); // + / - buttons
 
   var routeLayer = L.layerGroup().addTo(map);
   var userMarker = null, jeepLayer = L.layerGroup().addTo(map), centeredOnce = false;
@@ -85,6 +93,7 @@ function buildHtml(lat: number, lng: number): string {
 
   // Ride mode: keep a point centered as the rider moves. Smooth pan, holds zoom.
   window.follow = function(la, ln, zoom) {
+    if (Date.now() < pausedUntil) return; // you're looking around; resume in a few seconds
     var z = zoom || Math.max(map.getZoom(), 16);
     map.setView([la, ln], z, { animate: true, duration: 0.7 });
     centeredOnce = true;

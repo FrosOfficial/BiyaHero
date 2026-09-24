@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TripSummary } from '../logic/routeMath';
 import { Direction } from '../data/route';
+import { Segment } from '../logic/rideLog';
 
 export interface MonthTotals {
   rides: number;
@@ -17,6 +18,9 @@ export interface TripRecord extends TripSummary {
   endedAt: number; // ms timestamp when you got off
   direction: Direction;
   discounted: boolean;
+  segments?: Segment[]; // stop-to-stop times
+  avgKph?: number | null;
+  maxKph?: number | null;
 }
 
 const key = (d = new Date()) => `trips:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -69,7 +73,7 @@ export async function clearTripHistory(): Promise<void> {
  */
 export async function recordTrip(
   trip: TripSummary,
-  info: { startedAt: number; endedAt: number; direction: Direction; discounted: boolean }
+  info: { startedAt: number; endedAt: number; direction: Direction; discounted: boolean; segments?: Segment[]; avgKph?: number | null; maxKph?: number | null }
 ): Promise<MonthTotals> {
   const cur = await getMonthTotals();
   const next: MonthTotals = {

@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { TripSummary } from '../logic/routeMath';
 import { MOTO_TAXI } from '../data/fares';
 import { MonthTotals } from '../services/trips';
+import { RideStats, fmtDuration } from '../logic/rideLog';
 import { PALETTE, FONT } from '../theme/theme';
 import NeoCard from '../components/NeoCard';
 import NeoButton from '../components/NeoButton';
@@ -14,13 +15,14 @@ const peso = (v: number) => '₱' + (Number.isInteger(v) ? v.toLocaleString('en-
 
 interface Props {
   trip: TripSummary;
+  stats: RideStats | null;
   month: MonthTotals | null;
   discounted: boolean;
   onDone: () => void;
   onHistory: () => void;
 }
 
-export default function TripSummaryScreen({ trip, month, discounted, onDone, onHistory }: Props) {
+export default function TripSummaryScreen({ trip, stats, month, discounted, onDone, onHistory }: Props) {
   const { t } = useApp();
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.scroll}>
@@ -69,7 +71,28 @@ export default function TripSummaryScreen({ trip, month, discounted, onDone, onH
           <Text style={styles.tileNum}>{trip.minutes}</Text>
           <Text style={styles.tileLabel}>{t('onBoard')}</Text>
         </NeoCard>
+        <NeoCard style={[styles.card, styles.tile]}>
+          <Ionicons name="speedometer" size={26} color={PALETTE.purple} />
+          <Text style={styles.tileNum}>{stats?.avgKph != null ? Math.round(stats.avgKph) : '–'}</Text>
+          <Text style={styles.tileLabel}>{t('avgKph')}</Text>
+        </NeoCard>
       </View>
+
+      {stats && stats.segments.length ? (
+        <NeoCard style={styles.card}>
+          <Text style={styles.legTitle}>{t('stopByStop')}</Text>
+          {stats.segments.map((g, i) => (
+            <View key={i} style={[styles.legRow, i > 0 && styles.legLine]}>
+              <Text style={styles.legName} numberOfLines={1}>
+                {g.from} <Text style={{ color: PALETTE.blue }}>→</Text> {g.to}
+              </Text>
+              <Text style={styles.legKph}>{g.kph != null ? `${Math.round(g.kph)} km/h` : ''}</Text>
+              <Text style={styles.legTime}>{fmtDuration(g.sec)}</Text>
+            </View>
+          ))}
+          {stats.maxKph != null ? <Text style={styles.legFoot}>{t('topSpeed')}: {Math.round(stats.maxKph)} km/h</Text> : null}
+        </NeoCard>
+      ) : null}
 
       {month ? (
         <NeoCard style={styles.card}>
@@ -132,7 +155,7 @@ const styles = StyleSheet.create({
   srcLabel: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted },
   srcVal: { fontSize: 14, fontWeight: FONT.black },
   strike: { textDecorationLine: 'line-through', color: PALETTE.coral },
-  row: { flexDirection: 'row', gap: 14 },
+  row: { flexDirection: 'row', gap: 10 },
   tile: { flex: 1, alignItems: 'center', gap: 2 },
   tileNum: { fontSize: 24, fontWeight: FONT.black, color: PALETTE.text },
   tileLabel: { fontSize: 11, fontWeight: FONT.bold, color: PALETTE.textMuted, textAlign: 'center' },
@@ -140,5 +163,12 @@ const styles = StyleSheet.create({
   monthTitle: { fontSize: 11, fontWeight: FONT.black, color: '#FFFFFF', letterSpacing: 0.5 },
   monthRow: { flexDirection: 'row', justifyContent: 'space-between' },
   monthCell: { flex: 1, alignItems: 'center' },
+  legTitle: { fontSize: 13, fontWeight: FONT.black, color: PALETTE.text, marginBottom: 6 },
+  legRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7 },
+  legLine: { borderTopWidth: 1, borderTopColor: PALETTE.border },
+  legName: { flex: 1, fontSize: 13, fontWeight: FONT.bold, color: PALETTE.text },
+  legKph: { fontSize: 11.5, fontWeight: FONT.semibold, color: PALETTE.textMuted },
+  legTime: { width: 64, textAlign: 'right', fontSize: 13, fontWeight: FONT.black, color: PALETTE.text },
+  legFoot: { fontSize: 11.5, fontWeight: FONT.semibold, color: PALETTE.textMuted, marginTop: 6 },
   monthNum: { fontSize: 20, fontWeight: FONT.black, color: PALETTE.purple },
 });

@@ -14,6 +14,7 @@ const FALLBACK: Coords = { latitude: 14.5547, longitude: 121.0244 };
 export function useLocation() {
   const [coords, setCoords] = useState<Coords | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null); // meters; smaller = better
+  const [speedKph, setSpeedKph] = useState<number | null>(null); // from GPS; null = unknown
   const [perm, setPerm] = useState<PermState>('checking');
   const [error, setError] = useState<string | null>(null);
   const sub = useRef<Location.LocationSubscription | null>(null);
@@ -56,6 +57,8 @@ export function useLocation() {
             if (!mounted) return;
             setCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
             setAccuracy(loc.coords.accuracy ?? null);
+            const sp = loc.coords.speed; // meters per second, -1 or null when unknown
+            setSpeedKph(typeof sp === 'number' && sp >= 0 ? sp * 3.6 : null);
           }
         );
       } catch (e: any) {
@@ -70,5 +73,5 @@ export function useLocation() {
     };
   }, []);
 
-  return { coords, accuracy, perm, error };
+  return { coords, accuracy, speedKph, perm, error };
 }

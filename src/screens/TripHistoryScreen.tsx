@@ -6,6 +6,7 @@ import { TripRecord, getTripHistory, deleteTrip, clearTripHistory } from '../ser
 import { PALETTE, FONT } from '../theme/theme';
 import NeoCard from '../components/NeoCard';
 import NeoButton from '../components/NeoButton';
+import { fmtDuration } from '../logic/rideLog';
 
 interface Props {
   onBack: () => void;
@@ -38,6 +39,7 @@ function dayKey(ms: number): string {
 export default function TripHistoryScreen({ onBack }: Props) {
   const { t, lang } = useApp();
   const [trips, setTrips] = useState<TripRecord[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null); // trip whose stop-by-stop times are shown
 
   useEffect(() => {
     getTripHistory().then(setTrips);
@@ -136,7 +138,7 @@ export default function TripHistoryScreen({ onBack }: Props) {
             <View key={g.key} style={styles.group}>
               <Text style={styles.dayLabel}>{g.label}</Text>
               {g.items.map((tr) => (
-                <Pressable key={tr.id} onLongPress={() => askDelete(tr)} delayLongPress={450}>
+                <Pressable key={tr.id} onPress={() => setOpen(open === tr.id ? null : tr.id)} onLongPress={() => askDelete(tr)} delayLongPress={450}>
                   <NeoCard style={styles.card}>
                     <View style={styles.topRow}>
                       <View style={styles.numChip}>
@@ -175,7 +177,29 @@ export default function TripHistoryScreen({ onBack }: Props) {
                       </Text>
                       <Text style={styles.dot}>·</Text>
                       <Text style={styles.stat}>{tr.co2g}g CO₂</Text>
+                      {tr.avgKph != null ? (
+                        <>
+                          <Text style={styles.dot}>·</Text>
+                          <Text style={styles.stat}>avg {Math.round(tr.avgKph)} km/h</Text>
+                        </>
+                      ) : null}
                     </View>
+
+                    {tr.segments && tr.segments.length ? (
+                      open === tr.id ? (
+                        <View style={styles.legs}>
+                          {tr.segments.map((g, i) => (
+                            <View key={i} style={styles.legRow}>
+                              <Text style={styles.legName} numberOfLines={1}>{g.from} → {g.to}</Text>
+                              <Text style={styles.legKph}>{g.kph != null ? `${Math.round(g.kph)} km/h` : ''}</Text>
+                              <Text style={styles.legTime}>{fmtDuration(g.sec)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.more}>{t('showStopTimes')} ⌄</Text>
+                      )
+                    ) : null}
                   </NeoCard>
                 </Pressable>
               ))}
@@ -218,6 +242,12 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 6 },
   stat: { fontSize: 11.5, fontWeight: FONT.bold, color: PALETTE.textMuted },
   dot: { fontSize: 11.5, color: PALETTE.textMuted },
+  legs: { marginTop: 8, borderTopWidth: 1, borderTopColor: PALETTE.border, paddingTop: 4 },
+  legRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  legName: { flex: 1, fontSize: 12, fontWeight: FONT.bold, color: PALETTE.text },
+  legKph: { fontSize: 11, fontWeight: FONT.semibold, color: PALETTE.textMuted },
+  legTime: { width: 58, textAlign: 'right', fontSize: 12, fontWeight: FONT.black, color: PALETTE.text },
+  more: { fontSize: 11.5, fontWeight: FONT.bold, color: PALETTE.blue, marginTop: 6 },
   hint: { fontSize: 11, fontWeight: FONT.semibold, color: PALETTE.textMuted, textAlign: 'center', marginTop: 4 },
   empty: { alignItems: 'center', gap: 8, marginTop: 60, paddingHorizontal: 24 },
   emptyTitle: { fontSize: 17, fontWeight: FONT.black, color: PALETTE.text },

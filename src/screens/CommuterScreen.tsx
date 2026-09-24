@@ -8,6 +8,8 @@ import { clusterSightings, CrowdJeep } from '../logic/crowd';
 import { stopsFor, lineFor } from '../data/route';
 import { etaMinutes, progressOnRoute, nearestStopIndex, summarizeTrip, TripSummary } from '../logic/routeMath';
 import { recordTrip, MonthTotals } from '../services/trips';
+import { notifyTripComplete } from '../services/rideAlert';
+import { RideStats } from '../logic/rideLog';
 import { PALETTE, FONT } from '../theme/theme';
 import NeoButton from '../components/NeoButton';
 import NeoCard from '../components/NeoCard';
@@ -23,7 +25,7 @@ type Mode = 'map' | 'pick' | 'ride' | 'summary' | 'history';
 
 export default function CommuterScreen() {
   const { isConfigured, setBase, t, riderDirection: dir, setRiderDirection, discounted, setDiscounted } = useApp();
-  const { coords, accuracy, perm } = useLocation();
+  const { coords, accuracy, speedKph, perm } = useLocation();
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [now, setNow] = useState(Date.now());
 
@@ -33,6 +35,7 @@ export default function CommuterScreen() {
   const [destIndex, setDestIndex] = useState(0);
   const rideStart = useRef(0);
   const [trip, setTrip] = useState<TripSummary | null>(null);
+  const [stats, setStats] = useState<RideStats | null>(null);
   const [month, setMonth] = useState<MonthTotals | null>(null);
   const [historyBack, setHistoryBack] = useState<Mode>('map'); // where "back" goes from Trip History
   useEffect(() => {
@@ -93,14 +96,16 @@ export default function CommuterScreen() {
     [stops, hereIndex]
   );
 
-  const onArrive = useCallback(() => {
+  const onArrive = useCallback((rideStats: RideStats) => {
     if (!coords) return;
     const endedAt = Date.now();
     const minutes = (endedAt - rideStart.current) / 60000;
     const summary = summarizeTrip(dir, boardIndex, destIndex, minutes, discounted);
     setTrip(summary);
+    setStats(rideStats);
+    notifyTripComplete({ ...summary, avgKph: rideStats.avgKph, startedAt: rideStart.current, endedAt });
     setMode('summary');
-    recordTrip(summary, { startedAt: rideStart.current, endedAt, direction: dir, discounted }).then(setMonth);
+    recordTrip(summary, { startedAt: rideStart.current, endedAt, direction: dir, discounted, ...rideStats }).then(setMonth);
   }, [coords, dir, boardIndex, destIndex, discounted]);
 
   if (perm === 'denied') {
@@ -127,6 +132,8 @@ export default function CommuterScreen() {
       <RideScreen
         coords={coords}
         accuracy={accuracy}
+        speedKph={speedKph}
+        startedAt={rideStart.current}
         direction={dir}
         boardIndex={boardIndex}
         destIndex={destIndex}
@@ -140,6 +147,7 @@ export default function CommuterScreen() {
     return (
       <TripSummaryScreen
         trip={trip}
+        stats={stats}
         month={month}
         discounted={discounted}
         onDone={() => setMode('map')}

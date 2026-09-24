@@ -4,6 +4,12 @@ type Dict = Record<string, string>;
 
 export const STRINGS: Record<Lang, Dict> = {
   en: {
+    showStopTimes: 'Show stop-by-stop times',
+    topSpeed: 'Top speed',
+    stopByStop: 'Stop by stop',
+    avgKph: 'avg km/h',
+    speakNextYours: 'Next stop, {stop}. This is your stop.',
+    speakNext: 'Next stop, {stop}.',
     chooseRoute: 'Choose your route',
     changeRoute: 'Change',
     soon: 'Soon',
@@ -112,7 +118,7 @@ export const STRINGS: Record<Lang, Dict> = {
     getReadySub: 'Your stop is next. Get ready to get off.',
     offRoute: 'You seem to be off the route. The alert resumes once you are back on Chino Roces.',
     iGotOff: 'I got off',
-    keepOpen: 'Keep BiyaHero open during the ride so the alert can reach you.',
+    keepOpen: 'You can lock your phone. BiyaHero will still tell you when to get off.',
     voiceOn: 'Voice on',
     voiceOff: 'Voice muted',
     gpsAccuracy: 'GPS',
@@ -159,6 +165,12 @@ export const STRINGS: Record<Lang, Dict> = {
     sabit: 'SABIT / FULL',
   },
   fil: {
+    showStopTimes: 'Ipakita ang oras sa bawat hintuan',
+    topSpeed: 'Pinakamabilis',
+    stopByStop: 'Bawat hintuan',
+    avgKph: 'avg km/h',
+    speakNextYours: 'Susunod na hintuan, {stop}. Dito ka bababa.',
+    speakNext: 'Susunod na hintuan, {stop}.',
     chooseRoute: 'Piliin ang ruta mo',
     changeRoute: 'Palitan',
     soon: 'Malapit na',
@@ -261,7 +273,7 @@ export const STRINGS: Record<Lang, Dict> = {
     getReadySub: 'Susunod na ang babaan mo. Maghanda nang bumaba.',
     offRoute: 'Mukhang wala ka sa ruta. Babalik ang paalala kapag nasa Chino Roces ka na ulit.',
     iGotOff: 'Bumaba na ako',
-    keepOpen: 'Panatilihing bukas ang BiyaHero habang nakasakay para maabot ka ng paalala.',
+    keepOpen: 'Puwede mong i-lock ang phone. Sasabihan ka pa rin ng BiyaHero kung kailan bababa.',
     voiceOn: 'May boses',
     voiceOff: 'Naka-mute ang boses',
     gpsAccuracy: 'GPS',
