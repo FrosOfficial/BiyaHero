@@ -5,7 +5,7 @@ import * as Speech from 'expo-speech';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useApp } from '../context/AppContext';
 import { Coords } from '../hooks/useLocation';
-import { Direction, stopsFor, lineFor } from '../data/route';
+import { Direction, stopsFor, lineFor, detectRouteVariant, SKIPPED_STOPS_GREEN } from '../data/route';
 import { progressOnRoute, ridePhase, stopOffsets, nextStopIndex, nearestStopIndex, pointAlong } from '../logic/routeMath';
 import { PALETTE, FONT } from '../theme/theme';
 import NeoCard from '../components/NeoCard';
@@ -37,9 +37,10 @@ export default function RideScreen({ coords, accuracy, speedKph, startedAt, dire
   const { t, lang, voiceMuted, setVoiceMuted, deviceId } = useApp();
   useKeepAwake(); // screen stays on so the alert can fire
 
+  const variant = detectRouteVariant(coords.latitude, coords.longitude, direction);
   const stops = useMemo(() => stopsFor(direction), [direction]);
   const offsets = useMemo(() => stopOffsets(direction), [direction]);
-  const line = useMemo(() => lineFor(direction), [direction]);
+  const line = useMemo(() => lineFor(direction, variant), [direction, variant]);
   const dest = stops[destIndex];
 
   // Background alert: keep watching for the stop even if the app is backgrounded
@@ -59,7 +60,7 @@ export default function RideScreen({ coords, accuracy, speedKph, startedAt, dire
   const prog = progressOnRoute(coords, direction);
   const phase = ridePhase(prog.along, direction, destIndex);
   const nearIdx = nearestStopIndex(prog.along, direction);
-  const nextIdx = Math.min(nextStopIndex(prog.along, direction, 5), destIndex);
+  const nextIdx = Math.min(nextStopIndex(prog.along, direction, 5, variant), destIndex);
   const stopsLeft = Math.max(0, destIndex - nextIdx + 1);
   const kmLeft = Math.max(0, (offsets[destIndex] - prog.along) / 1000);
   const offRoute = prog.offRoute > 250;
@@ -70,6 +71,14 @@ export default function RideScreen({ coords, accuracy, speedKph, startedAt, dire
   useEffect(() => {
     if (offRoute) return;
     let changed = false;
+    if (variant === 'green') {
+      for (const skipped of SKIPPED_STOPS_GREEN) {
+        if (passTimes.current[skipped] == null) {
+          passTimes.current[skipped] = Date.now();
+          changed = true;
+        }
+      }
+    }
     for (let i = boardIndex + 1; i <= destIndex; i++) {
       // crossed out the moment you reach the stop's point on the line, not after
       if (passTimes.current[i] == null && offsets[i] <= prog.along) {
@@ -78,7 +87,7 @@ export default function RideScreen({ coords, accuracy, speedKph, startedAt, dire
       }
     }
     if (changed) setPassTick((n) => n + 1);
-  }, [prog.along, offRoute, boardIndex, destIndex, offsets]);
+  }, [prog.along, offRoute, boardIndex, destIndex, offsets, variant]);
 
   // ---- speed ----
   const kph = speedKph != null && speedKph < 100 ? speedKph : null; // ignore GPS spikes
@@ -205,6 +214,8 @@ export default function RideScreen({ coords, accuracy, speedKph, startedAt, dire
 
           {offRoute ? (
             <Text style={styles.warn}>{t('offRoute')}</Text>
+          ) : variant === 'green' && SKIPPED_STOPS_GREEN.includes(destIndex) ? (
+            <Text style={styles.warn}>{t('skippedDetourNotice')}</Text>
           ) : (
             <Text style={styles.now}>
               {t('nowNear')}: <Text style={styles.nowStrong}>{stops[nearIdx].short}</Text>

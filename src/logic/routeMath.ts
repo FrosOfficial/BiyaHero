@@ -1,5 +1,5 @@
 // Pure route math: no React, no phone APIs. Easy to test and reason about.
-import { Direction, LatLngTuple, RouteStop, lineFor, stopsFor } from '../data/route';
+import { Direction, LatLngTuple, RouteStop, RouteVariant, SKIPPED_STOPS_GREEN, lineFor, stopsFor } from '../data/route';
 import { JEEP_FARE, MOTO_TAXI, MOTO_TAXI_PUBLISHED, CO2_SAVED_G_PER_KM, JEEP_SPEED_M_PER_MIN } from '../data/fares';
 
 export interface LatLng {
@@ -111,10 +111,13 @@ export function nearestStopIndex(along: number, dir: Direction): number {
   return bi;
 }
 
-/** Index of the next stop still ahead of `along` (skips one you're standing at). */
-export function nextStopIndex(along: number, dir: Direction, slack = 40): number {
+/** Index of the next stop still ahead of along (skips one you are at, and skips bypassed detour stops). */
+export function nextStopIndex(along: number, dir: Direction, slack = 40, variant: RouteVariant = 'main'): number {
   const o = stopOffsets(dir);
-  for (let i = 0; i < o.length; i++) if (o[i] > along + slack) return i;
+  for (let i = 0; i < o.length; i++) {
+    if (variant === 'green' && SKIPPED_STOPS_GREEN.includes(i)) continue;
+    if (o[i] > along + slack) return i;
+  }
   return o.length - 1;
 }
 

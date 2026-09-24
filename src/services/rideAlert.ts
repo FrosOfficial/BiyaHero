@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { AppState } from 'react-native';
 import * as Speech from 'expo-speech';
-import { Direction, stopsFor } from '../data/route';
+import { Direction, stopsFor, detectRouteVariant } from '../data/route';
 import { progressOnRoute, stopOffsets, nextStopIndex } from '../logic/routeMath';
 
 const TASK = 'biyahero-ride-alert';
@@ -173,7 +173,8 @@ if (!isExpoGo) {
       const L = SAY[await langKey()];
 
       // live "next stop" + "stops left", capped at the destination
-      const nextIdx = Math.min(nextStopIndex(along, ride.direction, 5), ride.destIndex);
+      const variant = detectRouteVariant(loc.coords.latitude, loc.coords.longitude, ride.direction);
+      const nextIdx = Math.min(nextStopIndex(along, ride.direction, 5, variant), ride.destIndex);
       const stopsLeft = Math.max(0, ride.destIndex - nextIdx + 1);
       const nextName = stops[nextIdx]?.short ?? ride.destShort;
       const remaining = offsets[ride.destIndex] - along;

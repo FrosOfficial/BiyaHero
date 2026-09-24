@@ -94,11 +94,67 @@ function oriented(line: LatLngTuple[], endWord: RegExp): LatLngTuple[] {
   return d(line[0]) < d(line[line.length - 1]) ? [...line].reverse() : line;
 }
 
+export type RouteVariant = 'main' | 'blue' | 'green';
+
+function lineByName(name: string): LatLngTuple[] | null {
+  const f = features.find(
+    (x) => x.geometry?.type === 'LineString' && x.properties?.name === name
+  );
+  return f ? (f.geometry.coordinates as unknown[]).map(toLatLng) : null;
+}
+
 const LINE_TO_PRC: LatLngTuple[] = oriented(lineFromFile('toPRC') ?? [], /prc/i);
 const LINE_TO_MANTRADE: LatLngTuple[] = oriented(lineFromFile('toMantrade') ?? [...LINE_TO_PRC].reverse(), /mantrade/i);
 
-export function lineFor(dir: Direction): LatLngTuple[] {
-  return dir === 'toPRC' ? LINE_TO_PRC : LINE_TO_MANTRADE;
+const FERNANDO_PTS = lineByName('Fernando Detour') ?? [];
+const SANTILLAN_PTS = lineByName('Santillan Detour') ?? [];
+
+function spliceLine(base: LatLngTuple[], insert: LatLngTuple[], startNear: LatLngTuple, endNear: LatLngTuple): LatLngTuple[] {
+  if (!insert.length || base.length < 2) return base;
+  const d = (a: LatLngTuple, b: LatLngTuple) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+  let si = 0;
+  let ei = base.length - 1;
+  let minS = Infinity;
+  let minE = Infinity;
+  for (let i = 0; i < base.length; i++) {
+    const ds = d(base[i], startNear);
+    if (ds < minS) { minS = ds; si = i; }
+    const de = d(base[i], endNear);
+    if (de < minE) { minE = de; ei = i; }
+  }
+  return [...base.slice(0, si + 1), ...insert, ...base.slice(ei + 1)];
+}
+
+const LINE_TO_MANTRADE_BLUE: LatLngTuple[] = FERNANDO_PTS.length
+  ? spliceLine(LINE_TO_MANTRADE, FERNANDO_PTS, FERNANDO_PTS[0], FERNANDO_PTS[FERNANDO_PTS.length - 1])
+  : LINE_TO_MANTRADE;
+
+const GREEN_INSERT: LatLngTuple[] = FERNANDO_PTS.length >= 2 && SANTILLAN_PTS.length
+  ? [...FERNANDO_PTS.slice(0, 2), ...SANTILLAN_PTS]
+  : SANTILLAN_PTS;
+
+const LINE_TO_MANTRADE_GREEN: LatLngTuple[] = GREEN_INSERT.length
+  ? spliceLine(LINE_TO_MANTRADE, GREEN_INSERT, GREEN_INSERT[0], GREEN_INSERT[GREEN_INSERT.length - 1])
+  : LINE_TO_MANTRADE;
+
+// Indices of stops skipped when taking the green shortcut down M. Santillan
+export const SKIPPED_STOPS_GREEN = [8, 9];
+
+// Detect if a jeep on the toMantrade corridor took the blue loop or green shortcut
+export function detectRouteVariant(lat: number, lng: number, dir: Direction): RouteVariant {
+  if (dir !== 'toMantrade') return 'main';
+  if (lat >= 14.5513 && lat <= 14.5541 && lng < 121.01345) {
+    if (lat < 14.5533) return 'green';
+    return 'blue';
+  }
+  return 'main';
+}
+
+export function lineFor(dir: Direction, variant: RouteVariant = 'main'): LatLngTuple[] {
+  if (dir === 'toPRC') return LINE_TO_PRC;
+  if (variant === 'blue') return LINE_TO_MANTRADE_BLUE;
+  if (variant === 'green') return LINE_TO_MANTRADE_GREEN;
+  return LINE_TO_MANTRADE;
 }
 
 // ---------- ordering stops along the line ----------

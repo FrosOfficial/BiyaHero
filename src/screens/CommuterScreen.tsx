@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useLocation } from '../hooks/useLocation';
 import { subscribeSightings, Sighting } from '../services/live';
 import { clusterSightings, CrowdJeep } from '../logic/crowd';
-import { stopsFor, lineFor } from '../data/route';
+import { stopsFor, lineFor, detectRouteVariant } from '../data/route';
 import { etaMinutes, progressOnRoute, nearestStopIndex, summarizeTrip, TripSummary } from '../logic/routeMath';
 import { recordTrip, MonthTotals } from '../services/trips';
 import { notifyTripComplete } from '../services/rideAlert';
@@ -50,7 +50,8 @@ export default function CommuterScreen() {
   }, []);
 
   const stops = useMemo(() => stopsFor(dir), [dir]);
-  const line = useMemo(() => lineFor(dir), [dir]);
+  const variant = coords ? detectRouteVariant(coords.latitude, coords.longitude, dir) : 'main';
+  const line = useMemo(() => lineFor(dir, variant), [dir, variant]);
   // the stop you're at (nearest stop on the line to your GPS)
   const hereIndex = useMemo(
     () => (coords ? nearestStopIndex(progressOnRoute(coords, dir).along, dir) : 0),
