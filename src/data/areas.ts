@@ -34,6 +34,14 @@ export const REGIONS: Region[] = [
           { id: 'makati-toLRT', name: 'To LRT', nameKey: 'toLRT' },
         ],
       },
+      {
+        id: 'muntinlupa',
+        name: 'Muntinlupa',
+        routes: [
+          { id: 'muntinlupa-toSanPedro', name: 'To San Pedro', nameKey: 'toSanPedro', direction: 'toSanPedro' },
+          { id: 'muntinlupa-toAlabang', name: 'To Alabang', nameKey: 'toAlabang', direction: 'toAlabang' },
+        ],
+      },
       { id: 'manila', name: 'Manila', routes: [] },
       { id: 'quezon-city', name: 'Quezon City', routes: [] },
       { id: 'caloocan', name: 'Caloocan', routes: [] },
@@ -41,7 +49,6 @@ export const REGIONS: Region[] = [
       { id: 'malabon', name: 'Malabon', routes: [] },
       { id: 'mandaluyong', name: 'Mandaluyong', routes: [] },
       { id: 'marikina', name: 'Marikina', routes: [] },
-      { id: 'muntinlupa', name: 'Muntinlupa', routes: [] },
       { id: 'navotas', name: 'Navotas', routes: [] },
       { id: 'paranaque', name: 'Parañaque', routes: [] },
       { id: 'pasay', name: 'Pasay', routes: [] },

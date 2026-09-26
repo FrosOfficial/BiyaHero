@@ -15,7 +15,7 @@
 //
 // Grouping along the road (1-D) instead of by straight-line distance on the map
 // (2-D) keeps jeeps on opposite sides of the road apart and is simpler to tune.
-import { Direction } from '../data/route';
+import { ALL_DIRECTIONS, Direction } from '../data/route';
 import { progressOnRoute, pointAlong, LatLng } from './routeMath';
 
 export interface Sighting {
@@ -47,7 +47,7 @@ export const FRESH_MS = 25000;
 /** Group fresh rider sightings into jeeps. */
 export function clusterSightings(sightings: Sighting[], now = Date.now()): CrowdJeep[] {
   const out: CrowdJeep[] = [];
-  (['toPRC', 'toMantrade'] as Direction[]).forEach((dir) => {
+  ALL_DIRECTIONS.forEach((dir) => {
     // 1. place riders on the line, drop stale / off-route ones
     const placed = sightings
       .filter((s) => s.direction === dir && typeof s.latitude === 'number' && now - s.ts < FRESH_MS)

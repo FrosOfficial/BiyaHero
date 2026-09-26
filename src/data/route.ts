@@ -1,7 +1,10 @@
-// BiyaHero pilot route: Mantrade <-> PRC (Chino Roces Ave, Makati)
+// BiyaHero routes. Each corridor is one GeoJSON file you draw yourself
+// (e.g. at https://geojson.io):
+//   src/data/routeMap.json         Mantrade <-> PRC (Chino Roces Ave, Makati)
+//   src/data/alabangSanPedro.json  San Pedro <-> Alabang (Muntinlupa)
 //
-// The route line and the stops come from ONE file you draw yourself:
-//   src/data/routeMap.json   (GeoJSON, e.g. made at https://geojson.io)
+// The notes below describe the Mantrade file; other corridors work the same
+// way with their own direction names (see CORRIDORS).
 //
 // What that file needs:
 //  • A LineString for the road the jeep drives, drawn FROM Mantrade TO PRC.
@@ -12,13 +15,15 @@
 //  • One Point per stop with a "name" property (e.g. "Buendia (Gil Puyat)").
 //    Optional properties: "short" (label for small spaces), "terminal": true,
 //    "turnover": true (many riders get off here), "direction": "toPRC" or
-//    "toMantrade" (stop only used one way).
+//    "toMantrade" (stop only used one way), "variant": "green" (this stop
+//    replaces the same-named stop when the jeep takes that detour).
 //
 // Stops are ordered automatically by where they sit along the line, so the
 // order of features in the file doesn't matter.
 import routeMap from './routeMap.json';
+import alabangSanPedroMap from './alabangSanPedro.json';
 
-export type Direction = 'toPRC' | 'toMantrade';
+export type Direction = 'toPRC' | 'toMantrade' | 'toAlabang' | 'toSanPedro';
 export type LatLngTuple = [number, number]; // [latitude, longitude]
 
 export interface RouteStop {
@@ -30,6 +35,7 @@ export interface RouteStop {
   terminal?: boolean;
   turnover?: boolean;
   onlyDirection?: Direction;
+  onlyVariant?: RouteVariant; // replaces the same-named stop on this detour
 }
 
 export const ROUTE_NAME = 'Mantrade – PRC';
@@ -37,7 +43,13 @@ export const ROUTE_NAME = 'Mantrade – PRC';
 export const DIRECTIONS: { id: Direction; from: string; to: string }[] = [
   { id: 'toPRC', from: 'Mantrade', to: 'PRC' },
   { id: 'toMantrade', from: 'PRC', to: 'Mantrade' },
+  { id: 'toAlabang', from: 'San Pedro', to: 'Alabang' },
+  { id: 'toSanPedro', from: 'Alabang', to: 'San Pedro' },
 ];
+
+export const ALL_DIRECTIONS: Direction[] = DIRECTIONS.map((d) => d.id);
+
+export const isDirection = (v: unknown): v is Direction => ALL_DIRECTIONS.includes(v as Direction);
 
 // ---------- read the GeoJSON ----------
 
@@ -47,15 +59,18 @@ interface GeoFeature {
   geometry: { type: string; coordinates: unknown };
 }
 
-const features: GeoFeature[] = ((routeMap as { features?: GeoFeature[] }).features ?? []).filter(Boolean);
+const featuresOf = (file: unknown): GeoFeature[] =>
+  ((file as { features?: GeoFeature[] }).features ?? []).filter(Boolean);
+
+const features: GeoFeature[] = featuresOf(routeMap);
 
 const toLatLng = (c: unknown): LatLngTuple => {
   const [lng, lat] = c as number[]; // GeoJSON stores [longitude, latitude]
   return [lat, lng];
 };
 
-function lineFromFile(dir: Direction): LatLngTuple[] | null {
-  const f = features.find(
+function lineFromFile(dir: Direction, feats: GeoFeature[] = features): LatLngTuple[] | null {
+  const f = feats.find(
     (x) => x.geometry?.type === 'LineString' && (x.properties?.direction ?? 'toPRC') === dir
   );
   return f ? (f.geometry.coordinates as unknown[]).map(toLatLng) : null;
@@ -66,13 +81,14 @@ const isYes = (v: unknown) => v === true || v === 'true' || v === 'yes';
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-const rawStops: RouteStop[] = features
+const stopsFromFile = (feats: GeoFeature[]): RouteStop[] => feats
   .filter((f) => f.geometry?.type === 'Point')
   .map((f) => {
     const p = f.properties ?? {};
     const [latitude, longitude] = toLatLng(f.geometry.coordinates);
     const name = String(p.name ?? 'Stop');
-    const od = p.direction === 'toPRC' || p.direction === 'toMantrade' ? (p.direction as Direction) : undefined;
+    const od = isDirection(p.direction) ? p.direction : undefined;
+    const ov = p.variant === 'blue' || p.variant === 'green' ? (p.variant as RouteVariant) : undefined;
     return {
       id: slug(name),
       name,
@@ -82,13 +98,19 @@ const rawStops: RouteStop[] = features
       terminal: isYes(p.terminal),
       turnover: isYes(p.turnover),
       onlyDirection: od,
+      onlyVariant: ov,
     };
   });
 
+const allStops: RouteStop[] = stopsFromFile(features);
+// Detour-only stops are kept aside and swapped in by stopsFor(dir, variant).
+const rawStops: RouteStop[] = allStops.filter((s) => !s.onlyVariant);
+const VARIANT_STOPS: RouteStop[] = allStops.filter((s) => s.onlyVariant);
+
 // Safety net: if a line was drawn the wrong way round, flip it so it ends
 // nearest the stop whose name mentions its destination.
-function oriented(line: LatLngTuple[], endWord: RegExp): LatLngTuple[] {
-  const end = rawStops.find((s) => endWord.test(s.name));
+function oriented(line: LatLngTuple[], endWord: RegExp, stops: RouteStop[] = rawStops): LatLngTuple[] {
+  const end = stops.find((s) => endWord.test(s.name));
   if (!end || line.length < 2) return line;
   const d = (p: LatLngTuple) => (p[0] - end.latitude) ** 2 + (p[1] - end.longitude) ** 2;
   return d(line[0]) < d(line[line.length - 1]) ? [...line].reverse() : line;
@@ -140,17 +162,49 @@ const LINE_TO_MANTRADE_GREEN: LatLngTuple[] = GREEN_INSERT.length
 // Indices of stops skipped when taking the green shortcut down M. Santillan
 export const SKIPPED_STOPS_GREEN = [8, 9];
 
-// Detect if a jeep on the toMantrade corridor took the blue loop or green shortcut
+// Detect if a jeep on the toMantrade corridor took the blue loop or green shortcut.
+// Green is only recognised on M. Santillan itself: once it rejoins Arnaiz it
+// shares the road with the main route, so callers keep 'green' sticky (see
+// stickyVariant) for the rest of the ride.
 export function detectRouteVariant(lat: number, lng: number, dir: Direction): RouteVariant {
   if (dir !== 'toMantrade') return 'main';
-  if (lat >= 14.5513 && lat <= 14.5541 && lng < 121.01345) {
-    if (lat < 14.5533) return 'green';
-    return 'blue';
-  }
+  if (lat >= 14.5533 && lat <= 14.5541 && lng < 121.01345) return 'blue';
+  if (lat >= 14.5517 && lat < 14.5533 && lng < 121.0134) return 'green';
   return 'main';
 }
 
+/** Once a ride took the green shortcut it stays green (Arnaiz is shared road). */
+export function stickyVariant(prev: RouteVariant | undefined, now: RouteVariant): RouteVariant {
+  return prev === 'green' ? 'green' : now;
+}
+
+// ---------- other corridors (no detours) ----------
+
+interface Corridor {
+  forward: Direction; // direction the line is drawn in
+  back: Direction;
+  line: LatLngTuple[];
+  backLine: LatLngTuple[];
+  stops: RouteStop[];
+}
+
+function makeCorridor(file: unknown, forward: Direction, back: Direction, endWord: RegExp, startWord: RegExp): Corridor {
+  const feats = featuresOf(file);
+  const stops = stopsFromFile(feats);
+  const line = oriented(lineFromFile(forward, feats) ?? [], endWord, stops);
+  const backLine = oriented(lineFromFile(back, feats) ?? [...line].reverse(), startWord, stops);
+  return { forward, back, line, backLine, stops };
+}
+
+const ALABANG_SAN_PEDRO = makeCorridor(alabangSanPedroMap, 'toAlabang', 'toSanPedro', /alabang/i, /san pedro/i);
+
+const EXTRA_CORRIDORS: Corridor[] = [ALABANG_SAN_PEDRO];
+
+const corridorOf = (dir: Direction) => EXTRA_CORRIDORS.find((c) => c.forward === dir || c.back === dir);
+
 export function lineFor(dir: Direction, variant: RouteVariant = 'main'): LatLngTuple[] {
+  const c = corridorOf(dir);
+  if (c) return dir === c.forward ? c.line : c.backLine;
   if (dir === 'toPRC') return LINE_TO_PRC;
   if (variant === 'blue') return LINE_TO_MANTRADE_BLUE;
   if (variant === 'green') return LINE_TO_MANTRADE_GREEN;
@@ -187,16 +241,26 @@ export const STOPS: RouteStop[] = [...rawStops].sort(
   (a, b) => alongLine(LINE_TO_PRC, a.latitude, a.longitude) - alongLine(LINE_TO_PRC, b.latitude, b.longitude)
 );
 
-/** Stops served in one direction, in riding order. */
-export function stopsFor(dir: Direction): RouteStop[] {
+/** Stops served in one direction, in riding order. On a detour, a stop with a
+ *  detour-only twin (e.g. Waltermart on the green shortcut) is shown at the
+ *  twin's spot; the list keeps the same length and order either way. */
+export function stopsFor(dir: Direction, variant: RouteVariant = 'main'): RouteStop[] {
   const line = lineFor(dir);
-  return STOPS.filter((s) => !s.onlyDirection || s.onlyDirection === dir).sort(
+  const pool = corridorOf(dir)?.stops ?? STOPS;
+  const list = pool.filter((s) => !s.onlyDirection || s.onlyDirection === dir).sort(
     (a, b) => alongLine(line, a.latitude, a.longitude) - alongLine(line, b.latitude, b.longitude)
+  );
+  if (variant === 'main') return list;
+  return list.map(
+    (s) =>
+      VARIANT_STOPS.find(
+        (v) => v.onlyVariant === variant && v.id === s.id && (!v.onlyDirection || v.onlyDirection === dir)
+      ) ?? s
   );
 }
 
 export function stopById(id: string): RouteStop | undefined {
-  return STOPS.find((s) => s.id === id);
+  return STOPS.find((s) => s.id === id) ?? EXTRA_CORRIDORS.flatMap((c) => c.stops).find((s) => s.id === id);
 }
 
 /** The two ends of the line: [Mantrade end, PRC end]. */

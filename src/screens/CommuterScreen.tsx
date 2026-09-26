@@ -49,8 +49,8 @@ export default function CommuterScreen() {
     return () => clearInterval(i);
   }, []);
 
-  const stops = useMemo(() => stopsFor(dir), [dir]);
   const variant = coords ? detectRouteVariant(coords.latitude, coords.longitude, dir) : 'main';
+  const stops = useMemo(() => stopsFor(dir, variant), [dir, variant]);
   const line = useMemo(() => lineFor(dir, variant), [dir, variant]);
   // the stop you're at (nearest stop on the line to your GPS)
   const hereIndex = useMemo(

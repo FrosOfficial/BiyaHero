@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { AppState } from 'react-native';
 import * as Speech from 'expo-speech';
-import { Direction, stopsFor, detectRouteVariant } from '../data/route';
+import { Direction, RouteVariant, stopsFor, detectRouteVariant, stickyVariant } from '../data/route';
 import { progressOnRoute, stopOffsets, nextStopIndex } from '../logic/routeMath';
 
 const TASK = 'biyahero-ride-alert';
@@ -42,6 +42,7 @@ interface ActiveRide {
   warned: boolean;
   lastSaid?: number; // last stop index announced by voice in the background
   arrived?: boolean;
+  variant?: RouteVariant; // 'green' sticks once the jeep took the shortcut
 }
 
 // what the voice says (matches the app's English / Filipino setting)
@@ -173,7 +174,11 @@ if (!isExpoGo) {
       const L = SAY[await langKey()];
 
       // live "next stop" + "stops left", capped at the destination
-      const variant = detectRouteVariant(loc.coords.latitude, loc.coords.longitude, ride.direction);
+      const variant = stickyVariant(ride.variant, detectRouteVariant(loc.coords.latitude, loc.coords.longitude, ride.direction));
+      if (variant === 'green' && ride.variant !== 'green') {
+        ride.variant = 'green';
+        await saveRide(ride);
+      }
       const nextIdx = Math.min(nextStopIndex(along, ride.direction, 5, variant), ride.destIndex);
       const stopsLeft = Math.max(0, ride.destIndex - nextIdx + 1);
       const nextName = stops[nextIdx]?.short ?? ride.destShort;

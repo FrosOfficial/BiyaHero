@@ -144,7 +144,7 @@ export default function TripHistoryScreen({ onBack }: Props) {
                       <View style={styles.numChip}>
                         <Text style={styles.numText}>#{tr.num}</Text>
                       </View>
-                      <View style={[styles.dirChip, { backgroundColor: tr.direction === 'toPRC' ? '#E7F0FF' : '#FFF4DB' }]}>
+                      <View style={[styles.dirChip, { backgroundColor: tr.direction === 'toPRC' || tr.direction === 'toAlabang' ? '#E7F0FF' : '#FFF4DB' }]}>
                         <Text style={styles.dirText}>{t(tr.direction)}</Text>
                       </View>
                       <View style={{ flex: 1 }} />

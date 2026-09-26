@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Coords } from '../hooks/useLocation';
 import { isConfigured } from '../firebase';
 import { Lang, translate } from '../i18n';
-import { Direction } from '../data/route';
+import { Direction, isDirection } from '../data/route';
 import { distanceMeters as routeDistance } from '../logic/routeMath';
 
 interface AppState {
@@ -57,7 +57,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const lg = await AsyncStorage.getItem('lang');
         if (lg === 'fil' || lg === 'en') setLangState(lg);
         const rd = await AsyncStorage.getItem('riderDirection');
-        if (rd === 'toPRC' || rd === 'toMantrade') setRiderDirectionState(rd);
+        if (isDirection(rd)) setRiderDirectionState(rd);
         const dc = await AsyncStorage.getItem('discounted');
         if (dc === 'yes') setDiscountedState(true);
         const vm = await AsyncStorage.getItem('voiceMuted');

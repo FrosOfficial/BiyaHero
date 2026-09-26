@@ -715,6 +715,23 @@
       "geometry": {
         "type": "Point",
         "coordinates": [
+          121.013427,
+          14.551475
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Waltermart Makati",
+        "short": "Waltermart",
+        "turnover": true,
+        "direction": "toMantrade",
+        "variant": "green"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
           121.013015,
           14.551614
         ]

@@ -5,7 +5,7 @@ import * as Speech from 'expo-speech';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useApp } from '../context/AppContext';
 import { Coords } from '../hooks/useLocation';
-import { Direction, stopsFor, lineFor, detectRouteVariant, SKIPPED_STOPS_GREEN } from '../data/route';
+import { Direction, RouteVariant, stopsFor, lineFor, detectRouteVariant, stickyVariant, SKIPPED_STOPS_GREEN } from '../data/route';
 import { progressOnRoute, ridePhase, stopOffsets, nextStopIndex, nearestStopIndex, pointAlong } from '../logic/routeMath';
 import { PALETTE, FONT } from '../theme/theme';
 import NeoCard from '../components/NeoCard';
@@ -37,8 +37,11 @@ export default function RideScreen({ coords, accuracy, speedKph, startedAt, dire
   const { t, lang, voiceMuted, setVoiceMuted, deviceId } = useApp();
   useKeepAwake(); // screen stays on so the alert can fire
 
-  const variant = detectRouteVariant(coords.latitude, coords.longitude, direction);
-  const stops = useMemo(() => stopsFor(direction), [direction]);
+  // once the jeep turns into the green shortcut, the rest of the ride stays green
+  const lastVariant = useRef<RouteVariant>('main');
+  const variant = stickyVariant(lastVariant.current, detectRouteVariant(coords.latitude, coords.longitude, direction));
+  lastVariant.current = variant;
+  const stops = useMemo(() => stopsFor(direction, variant), [direction, variant]);
   const offsets = useMemo(() => stopOffsets(direction), [direction]);
   const line = useMemo(() => lineFor(direction, variant), [direction, variant]);
   const dest = stops[destIndex];
